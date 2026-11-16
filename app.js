@@ -514,7 +514,17 @@
       return;
     }
     if (ev.target.closest(".inline-pal")) return;
-    if (estado.ajustes.soTexto) return; // no modo só texto, tocar no versículo não abre ferramentas
+    if (estado.ajustes.soTexto) {
+      // No modo só texto, tocar no versículo só o marca para grifar (sem painel nem ferramentas).
+      const tocado = ev.target.closest(".v, .vi-pt");
+      if (!tocado) return;
+      const nv = numVerso(tocado.closest("[data-v]").dataset.v);
+      const pos = sel.indexOf(nv);
+      if (pos === -1) sel.push(nv);
+      else sel.splice(pos, 1);
+      aplicarSelecaoNoLeitor();
+      return;
+    }
     const gatilho = ev.target.closest(".v, .vi-pt");
     if (!gatilho) return;
     const el = gatilho.closest("[data-v]");
@@ -1046,6 +1056,7 @@
     });
     marcarPalavraAtiva();
     atualizarInline();
+    mostrarCoresLeitura();
   }
   function marcarPalavraAtiva() {
     const ativa = palavraSel ? palavraSel.v + ":" + palavraSel.i : null;
@@ -1775,6 +1786,24 @@
     renderLeitor();
     if (!ligar) renderPainel();
   }
+  // Paleta de grifo do modo só texto: aparece quando há versículo tocado.
+  function mostrarCoresLeitura() {
+    const caixa = $("lt-cores");
+    caixa.hidden = !(estado.ajustes.soTexto && sel.length);
+    $("lt-quantos").textContent = sel.length + (sel.length === 1 ? " versículo" : " versículos");
+  }
+  $("lt-cores").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-ltcor]");
+    if (!b) return;
+    for (const v of sel) {
+      const k = chave(estado.livro, estado.cap, v);
+      if (b.dataset.ltcor) estado.marcas[k] = b.dataset.ltcor;
+      else delete estado.marcas[k];
+    }
+    sel = [];
+    salvar();
+    aplicarSelecaoNoLeitor();
+  });
   $("btn-ler").addEventListener("click", () => modoSoTexto(true));
   $("lt-sair").addEventListener("click", () => modoSoTexto(false));
   $("lt-anterior").addEventListener("click", () => $("btn-anterior").click());
@@ -1782,9 +1811,29 @@
   $("lt-rotulo").addEventListener("click", () => $("btn-livro").click());
   // Deslizar o dedo para os lados troca de capítulo (só neste modo, para não atrapalhar a seleção de texto).
   let toque = null;
+  // Pinça com dois dedos muda o tamanho da letra (em vez de ampliar a página).
+  let pinca = null;
+  const distancia = (ev) => Math.hypot(ev.touches[0].clientX - ev.touches[1].clientX, ev.touches[0].clientY - ev.touches[1].clientY);
   leitorEl.addEventListener("touchstart", (ev) => {
     toque = estado.ajustes.soTexto && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null;
+    pinca = estado.ajustes.soTexto && ev.touches.length === 2 ? { d: distancia(ev), e: estado.ajustes.escala } : null;
   }, { passive: true });
+  leitorEl.addEventListener("touchmove", (ev) => {
+    if (!pinca || ev.touches.length !== 2) return;
+    ev.preventDefault();
+    const nova = Math.min(2.2, Math.max(0.8, (pinca.e * distancia(ev)) / pinca.d));
+    estado.ajustes.escala = Math.round(nova * 20) / 20;
+    document.documentElement.style.setProperty("--escala", String(estado.ajustes.escala));
+  }, { passive: false });
+  leitorEl.addEventListener("touchend", (ev) => {
+    if (!pinca || ev.touches.length >= 2) return;
+    pinca = null;
+    toque = null;
+    salvar();
+    aplicarAjustes();
+  }, { passive: true });
+  // Safari: impede o zoom nativo da página durante a pinça neste modo.
+  leitorEl.addEventListener("gesturestart", (ev) => estado.ajustes.soTexto && ev.preventDefault());
   leitorEl.addEventListener("touchend", (ev) => {
     if (!toque) return;
     const dx = ev.changedTouches[0].clientX - toque.x;
@@ -1868,7 +1917,7 @@
     const b = ev.target.closest("[data-escala]");
     if (!b) return;
     const passo = Number(b.dataset.escala);
-    estado.ajustes.escala = passo === 0 ? 1 : Math.min(1.6, Math.max(0.8, Math.round((estado.ajustes.escala + passo) * 10) / 10));
+    estado.ajustes.escala = passo === 0 ? 1 : Math.min(2.2, Math.max(0.8, Math.round((estado.ajustes.escala + passo) * 10) / 10));
     salvar();
     aplicarAjustes();
   });

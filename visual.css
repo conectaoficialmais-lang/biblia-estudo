@@ -297,3 +297,28 @@ body.so-texto .leitura-barra {
 .leitura-barra .icone[disabled] { opacity: 0.35; }
 .lt-rotulo { border: 0; background: none; font-family: var(--titulo); font-weight: 800; font-size: 15px; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #lt-sair { background: none; color: var(--tinta-2); }
+
+/* Modo só texto: grifo ao tocar, pinça para o tamanho da letra e barra em vidro */
+body.so-texto .v { cursor: pointer; }
+body.so-texto .inline-pal { display: none !important; }
+body.so-texto .leitor { touch-action: pan-y; }
+body.so-texto .leitura-barra, .lt-cores {
+  background: color-mix(in srgb, var(--cartao) 48%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8);
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22), inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent);
+}
+.leitura-barra .icone { background: color-mix(in srgb, var(--tinta) 9%, transparent); border-color: transparent; }
+#lt-sair { background: none; }
+.lt-cores[hidden] { display: none; }
+.lt-cores {
+  display: flex; align-items: center; gap: 10px; position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
+  bottom: calc(82px + env(safe-area-inset-bottom)); padding: 8px 12px 8px 16px; border-radius: 99px; max-width: calc(100vw - 20px);
+}
+.lt-cores span { font-size: 13px; font-weight: 600; white-space: nowrap; margin-right: 2px; }
+.lt-cores .cor { width: 32px; height: 32px; flex: none; border-color: color-mix(in srgb, var(--tinta) 18%, transparent); }
+.cor[data-ltcor="amarelo"] { background: #f6d84a; }
+.cor[data-ltcor="verde"] { background: #6fcf82; }
+.cor[data-ltcor="azul"] { background: #6aa9f2; }
+.cor[data-ltcor="rosa"] { background: #f28aa5; }
+.cor[data-ltcor=""] { background: color-mix(in srgb, var(--tinta) 10%, transparent); font-size: 15px; color: var(--tinta); }
