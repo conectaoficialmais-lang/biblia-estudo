@@ -2,11 +2,11 @@
 // - Páginas, estilos e scripts: rede primeiro (para receber atualizações), cache se estiver offline.
 // - Dados (textos bíblicos, léxico, referências): cache primeiro, atualizando por trás.
 // - Fontes e biblioteca do mapa (outros sites): cache primeiro. As imagens do mapa não são guardadas.
-const VERSAO = "v1";
+const VERSAO = "v2";
 const CASCA = "biblia-casca-" + VERSAO;
 const DADOS = "biblia-dados-" + VERSAO;
 const FORA = "biblia-fora-" + VERSAO;
-const INICIAIS = ["./", "index.html", "estilo.css", "visual.css", "app.js", "vistas.js", "sermao.js", "dados/indice.json", "manifest.webmanifest", "icons/icone-192.png"];
+const INICIAIS = ["./", "index.html", "estilo.css", "visual.css", "app.js", "vistas.js", "sermao.js", "sinc.js", "dados/indice.json", "manifest.webmanifest", "icons/icone-192.png"];
 
 self.addEventListener("install", (ev) => {
   ev.waitUntil(caches.open(CASCA).then((c) => c.addAll(INICIAIS)).then(() => self.skipWaiting()));
@@ -47,6 +47,7 @@ self.addEventListener("fetch", (ev) => {
   const req = ev.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  if (url.origin === self.location.origin && url.pathname.includes("/api/")) return; // sincronização vai sempre à rede
   if (url.origin === self.location.origin) {
     if (/\/dados\/.+\.json$/.test(url.pathname) || url.pathname.includes("/icons/")) ev.respondWith(cachePrimeiro(req, DADOS, true));
     else ev.respondWith(redePrimeiro(req, CASCA));

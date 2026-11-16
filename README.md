@@ -2,9 +2,9 @@
 
 App pessoal de estudo bíblico. HTML, CSS e JavaScript puros, sem etapa de build.
 
-- Abrir no computador: `node tools/servidor.js` e acessar http://localhost:4190
+- Abrir no computador: `node tools/servidor.cjs` e acessar http://localhost:4190
 - Publicação: cada push na `main` publica na Vercel.
-- Anotações, grifos, sermões e progresso ficam no navegador de cada aparelho (localStorage). Para levar de um aparelho a outro: Caderno → Baixar cópia de segurança → Restaurar cópia.
+- Anotações, grifos, sermões e progresso ficam no navegador de cada aparelho; com um código de sincronização (Caderno) eles passam a ser os mesmos em todos.
 
 ## Créditos dos textos
 

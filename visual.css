@@ -247,3 +247,11 @@ mark.rep6 { background: color-mix(in srgb, #12a3a3 26%, var(--cartao)); }
   #impressao blockquote { background: none; box-shadow: none; border-left: 2pt solid #999; border-radius: 0; }
   #impressao h2 { break-after: avoid; }
 }
+
+/* ===== Sincronização ===== */
+.sinc strong { display: block; font-family: var(--titulo); font-weight: 800; font-size: 16px; margin-bottom: 4px; }
+.sinc p { margin: 0 0 10px; }
+.sinc p:last-child { margin-bottom: 0; }
+.sinc-entrar { display: flex; gap: 6px; align-items: center; }
+.sinc-entrar .campo { margin: 0; font-size: 14px; font-weight: 500; background: var(--superficie-2); box-shadow: none; }
+.sinc-cod { font-family: ui-monospace, Consolas, monospace; font-size: 19px; font-weight: 700; letter-spacing: 0.06em; padding: 10px 14px; border-radius: var(--raio-p); background: var(--superficie-2); user-select: all; word-break: break-all; }

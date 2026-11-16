@@ -1,0 +1,9 @@
+{
+  "name": "biblia-estudo",
+  "private": true,
+  "type": "module",
+  "description": "App pessoal de estudo bíblico (site estático + função de sincronização).",
+  "dependencies": {
+    "@vercel/blob": "2.8.2"
+  }
+}

@@ -58,6 +58,7 @@
     } catch (e) {
       /* armazenamento indisponível: o app segue funcionando sem persistir */
     }
+    if (window.Sinc) window.Sinc.aoSalvar();
   }
   function esc(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1439,6 +1440,7 @@
     html +=
       '<p><button class="botao" data-acao="exportar">Baixar cópia de segurança</button> ' +
       '<button class="botao" data-acao="importar">Restaurar cópia</button><input type="file" id="arq-importar" accept="application/json,.json" hidden></p>';
+    if (window.Sinc) html += window.Sinc.htmlCaderno();
     if (porTipo.some((x) => x[1].length)) {
       html += '<h3>Coleção por tipo</h3><div class="chips">' + porTipo.map(([t, l]) => '<button class="chip tipo-' + t + (cadernoTipo === t ? " atual" : "") + '" data-acao="filtro-tipo" data-tipo="' + t + '">' +
         TIPOS_V[t] + " " + l.length + "</button>").join("") + "</div>";
@@ -1591,6 +1593,8 @@
     } else if (alvo.dataset.abaIr) {
       aba = alvo.dataset.abaIr;
       renderPainel();
+    } else if (alvo.dataset.acao && alvo.dataset.acao.startsWith("sinc-")) {
+      if (window.Sinc) window.Sinc.acao(alvo.dataset.acao, alvo);
     } else if (alvo.dataset.acao === "filtro-tipo") {
       cadernoTipo = cadernoTipo === alvo.dataset.tipo ? null : alvo.dataset.tipo;
       renderPainel();
@@ -1803,6 +1807,13 @@
     estado, salvar, livros, todos, porCod, esc, formatarVerso, carregarLivro, irPara, VERSOES,
     capitulos, partesRef, rotuloPartes, celular, chave, registrarLeitura, SEGUNDOS_LEITURA, acharLivro, estrutura,
     // Abre (ou redesenha) uma área, mesmo que já seja a atual.
+    // Redesenha o que está na tela depois que a sincronização traz dados de outro aparelho.
+    redesenhar() {
+      if (vistaAtual === "biblia") {
+        aplicarSelecaoNoLeitor();
+        renderPainel();
+      } else if (!["sermoes"].includes(vistaAtual) && window.Vistas && window.Vistas[vistaAtual] && vistaAtual !== "mapa") window.Vistas[vistaAtual](vistaEl);
+    },
     abrirVista(nome) {
       vistaAtual = null;
       mostrarVista(nome);
