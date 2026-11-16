@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Estudo Bíblico</title>
+<meta name="description" content="Bíblia de estudo pessoal.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f1f1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0b0e" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bíblia">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icone-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&family=Noto+Sans+Hebrew:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="stylesheet" href="estilo.css">
+<link rel="stylesheet" href="visual.css">
+</head>
+<body>
+<nav class="vistas" aria-label="Áreas do app">
+  <button data-vista="biblia" aria-pressed="true">Bíblia</button>
+  <button data-vista="mapa" aria-pressed="false">Mapa</button>
+  <button data-vista="harmonia" aria-pressed="false">Harmonia</button>
+  <button data-vista="citacoes" aria-pressed="false">Citações e profecias</button>
+  <button data-vista="pessoas" aria-pressed="false">Pessoas</button>
+  <button data-vista="reis" aria-pressed="false">Reis e profetas</button>
+  <button data-vista="dicionario" aria-pressed="false">Dicionário</button>
+  <button data-vista="dificeis" aria-pressed="false">Passagens difíceis</button>
+  <button data-vista="sermoes" aria-pressed="false">Sermões e estudos</button>
+  <button data-vista="plano" aria-pressed="false">Plano de leitura</button>
+  <button data-vista="memorizar" aria-pressed="false">Memorizar</button>
+</nav>
+<header class="topo">
+  <button id="btn-livro" class="seletor" aria-haspopup="dialog">
+    <span id="rotulo-livro">Gênesis 1</span>
+    <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+  </button>
+  <div class="nav-cap">
+    <button id="btn-anterior" class="icone" aria-label="Capítulo anterior">‹</button>
+    <button id="btn-proximo" class="icone" aria-label="Próximo capítulo">›</button>
+  </div>
+  <form id="form-busca" class="busca" role="search">
+    <input id="campo-busca" type="search" placeholder="Buscar palavra ou ir para Jo 3:16" aria-label="Buscar na Bíblia">
+  </form>
+  <select id="sel-versao" aria-label="Tradução">
+    <option value="blivre">Bíblia Livre</option>
+    <option value="bpm">Portuguesa Mundial</option>
+  </select>
+  <button id="btn-inter" class="botao" aria-pressed="false" title="Mostrar cada palavra do original com a tradução embaixo">Interlinear</button>
+  <div class="ajustes-caixa">
+    <button id="btn-ajustes" class="icone" aria-label="Ajustes de leitura" aria-haspopup="true">Aa</button>
+    <div id="ajustes" class="ajustes" hidden>
+      <div class="aj-linha">
+        <span>Tamanho da letra</span>
+        <span class="aj-tam">
+          <button class="icone" data-escala="-0.1" aria-label="Diminuir a letra">−</button>
+          <button class="link" data-escala="0" id="aj-tamanho" title="Voltar ao tamanho padrão">100%</button>
+          <button class="icone" data-escala="0.1" aria-label="Aumentar a letra">+</button>
+        </span>
+      </div>
+      <label class="aj-linha"><span>Modo foco (sem painel)</span><input type="checkbox" id="aj-foco"></label>
+      <label class="aj-linha"><span>Esconder números dos versículos</span><input type="checkbox" id="aj-numeros"></label>
+      <label class="aj-linha"><span>Cores de quem está falando</span><input type="checkbox" id="aj-falas"></label>
+    </div>
+  </div>
+  <button id="btn-tema" class="icone" aria-label="Alternar tema claro e escuro">◐</button>
+  <button id="btn-painel" class="so-celular botao">Estudo</button>
+</header>
+
+<main class="palco">
+  <article id="leitor" class="leitor" aria-live="polite"></article>
+  <section id="vista" class="vista" hidden></section>
+
+  <aside id="painel" class="painel" aria-label="Painel de estudo">
+    <nav class="abas" role="tablist">
+      <button role="tab" data-aba="estudo" aria-selected="true">Estudo</button>
+      <button role="tab" data-aba="tempo" aria-selected="false">Linha do tempo</button>
+      <button role="tab" data-aba="biblioteca" aria-selected="false">Biblioteca</button>
+      <button role="tab" data-aba="caderno" aria-selected="false">Caderno</button>
+      <button role="tab" data-aba="busca" aria-selected="false" hidden>Busca</button>
+      <button id="btn-fechar-painel" class="icone so-celular" aria-label="Fechar painel">×</button>
+    </nav>
+    <div id="conteudo-painel" class="conteudo-painel"></div>
+  </aside>
+</main>
+
+<dialog id="dlg-livros" class="dlg-livros">
+  <div class="dlg-topo">
+    <input id="filtro-livro" type="text" placeholder="Filtrar livro" aria-label="Filtrar livro">
+    <button id="btn-fechar-dlg" class="icone" aria-label="Fechar">×</button>
+  </div>
+  <div id="lista-livros" class="lista-livros"></div>
+</dialog>
+
+<script src="dados/livros.js"></script>
+<script src="dados/cronologia.js"></script>
+<script src="dados/estudos.js"></script>
+<script src="dados/morfologia.js"></script>
+<script src="dados/mapa.js"></script>
+<script src="dados/rotas.js"></script>
+<script src="dados/rotas-at.js"></script>
+<script src="dados/profecias.js"></script>
+<script src="dados/pessoas.js"></script>
+<script src="dados/reis-profetas.js"></script>
+<script src="dados/introducoes-at1.js"></script>
+<script src="dados/introducoes-at2.js"></script>
+<script src="dados/introducoes-nt.js"></script>
+<script src="dados/dicionario.js"></script>
+<script src="dados/dificeis.js"></script>
+<script src="dados/falas-jesus-1.js"></script>
+<script src="dados/falas-jesus-2.js"></script>
+<script src="dados/citacoes.js"></script>
+<script src="dados/harmonia.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="app.js"></script>
+<script src="vistas.js"></script>
+<script src="sermao.js"></script>
+<script>
+  // Fora do computador de desenvolvimento, registra o service worker para o app abrir sem internet.
+  if ("serviceWorker" in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
+</body>
+</html>
