@@ -255,3 +255,25 @@ mark.rep6 { background: color-mix(in srgb, #12a3a3 26%, var(--cartao)); }
 .sinc-entrar { display: flex; gap: 6px; align-items: center; }
 .sinc-entrar .campo { margin: 0; font-size: 14px; font-weight: 500; background: var(--superficie-2); box-shadow: none; }
 .sinc-cod { font-family: ui-monospace, Consolas, monospace; font-size: 19px; font-weight: 700; letter-spacing: 0.06em; padding: 10px 14px; border-radius: var(--raio-p); background: var(--superficie-2); user-select: all; word-break: break-all; }
+
+/* ===== Barra inferior (celular) ===== */
+.barra-baixo, .folha-mais { display: none; }
+@media (max-width: 900px) {
+  .vistas { display: none; }
+  .topo { padding-top: max(10px, env(safe-area-inset-top)); }
+  .barra-baixo {
+    display: grid; grid-template-columns: repeat(5, 1fr); flex: none; z-index: 30;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: var(--cartao);
+    box-shadow: 0 -1px 0 var(--linha), 0 -10px 30px rgba(0, 0, 0, 0.08);
+  }
+  .barra-baixo button { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none; padding: 6px 2px 4px; border-radius: 14px; color: var(--tinta-2); font-size: 11px; font-weight: 600; }
+  .barra-baixo button[aria-pressed="true"] { color: var(--acento); }
+  .barra-baixo button[aria-pressed="true"] svg { stroke-width: 2.3; }
+  .folha-mais:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, 0.35); }
+  .folha-caixa {
+    position: absolute; left: 10px; right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 12px; border-radius: 24px; background: var(--cartao); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  }
+  .folha-caixa button { text-align: left; padding: 13px 14px; border: 0; border-radius: 14px; background: var(--superficie-2); font-weight: 600; font-size: 14px; }
+  .painel { bottom: calc(62px + env(safe-area-inset-bottom)); z-index: 20; }
+}

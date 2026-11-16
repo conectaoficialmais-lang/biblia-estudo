@@ -1728,7 +1728,10 @@
     renderLeitor(sel[0] || (palavraSel && palavraSel.v));
   });
   $("btn-painel").addEventListener("click", abrirPainel);
-  $("btn-fechar-painel").addEventListener("click", fecharPainel);
+  $("btn-fechar-painel").addEventListener("click", () => {
+    fecharPainel();
+    marcarBarra(vistaAtual);
+  });
   window.addEventListener("hashchange", () => {
     const h = lerHash();
     if (h) irPara(h.cod, h.cap, h.verso);
@@ -1746,6 +1749,7 @@
     vistaAtual = nome;
     document.body.dataset.vista = nome;
     document.querySelectorAll(".vistas [data-vista]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.vista === nome)));
+    marcarBarra(nome);
     const biblia = nome === "biblia";
     leitorEl.hidden = !biblia;
     vistaEl.hidden = biblia;
@@ -1755,6 +1759,46 @@
       else vistaEl.innerHTML = '<div class="leitor-interno"><p class="aviso">Esta área ainda não carregou.</p></div>';
     }
   }
+  // ---------- barra inferior (celular) ----------
+  const folhaMais = $("folha-mais");
+  const NA_BARRA = ["biblia", "plano", "sermoes"];
+  function marcarBarra(ativo) {
+    const alvo = NA_BARRA.includes(ativo) || ativo === "caderno" ? ativo : "mais";
+    document.querySelectorAll(".barra-baixo button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.vista || b.dataset.bb) === alvo)));
+  }
+  document.querySelector(".barra-baixo").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button");
+    if (!b) return;
+    if (b.dataset.bb === "mais") {
+      folhaMais.hidden = !folhaMais.hidden;
+      return;
+    }
+    folhaMais.hidden = true;
+    if (b.dataset.bb === "caderno") {
+      mostrarVista("biblia");
+      aba = "caderno";
+      abrirPainel();
+      renderPainel();
+      marcarBarra("caderno");
+      return;
+    }
+    fecharPainel();
+    if (b.dataset.vista === vistaAtual) marcarBarra(vistaAtual);
+    else mostrarVista(b.dataset.vista);
+  });
+  folhaMais.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button");
+    folhaMais.hidden = true;
+    if (!b) return;
+    if (b.dataset.bb) {
+      // Linha do tempo e Biblioteca são abas do painel de estudo.
+      mostrarVista("biblia");
+      aba = b.dataset.bb;
+      abrirPainel();
+      renderPainel();
+      marcarBarra("mais");
+    } else mostrarVista(b.dataset.vista);
+  });
   document.querySelector(".vistas").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-vista]");
     if (b) mostrarVista(b.dataset.vista);
