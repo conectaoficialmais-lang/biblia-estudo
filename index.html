@@ -51,6 +51,7 @@
     <option value="blivre">Bíblia Livre</option>
     <option value="bpm">Portuguesa Mundial</option>
   </select>
+  <button id="btn-ler" class="botao" title="Mostrar só o texto, para ler sem distrações">Só texto</button>
   <button id="btn-inter" class="botao" aria-pressed="false" title="Mostrar cada palavra do original com a tradução embaixo">Interlinear</button>
   <div class="ajustes-caixa">
     <button id="btn-ajustes" class="icone" aria-label="Ajustes de leitura" aria-haspopup="true">Aa</button>
@@ -89,6 +90,12 @@
   </aside>
 </main>
 
+<div class="leitura-barra" aria-label="Modo só texto">
+  <button id="lt-anterior" class="icone" aria-label="Capítulo anterior">‹</button>
+  <button id="lt-rotulo" class="lt-rotulo" title="Escolher livro e capítulo">Gênesis 1</button>
+  <button id="lt-proximo" class="icone" aria-label="Próximo capítulo">›</button>
+  <button id="lt-sair" class="icone" aria-label="Sair do modo só texto" title="Sair do modo só texto">×</button>
+</div>
 <div id="folha-mais" class="folha-mais" hidden>
   <div class="folha-caixa" role="menu" aria-label="Outras áreas">
     <button data-vista="mapa">Mapa</button>

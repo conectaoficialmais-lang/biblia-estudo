@@ -402,6 +402,7 @@
     const vez = ++renderizacao;
     const livro = porCod.get(estado.livro);
     $("rotulo-livro").textContent = livro.nome + " " + estado.cap;
+    $("lt-rotulo").textContent = livro.nome + " " + estado.cap;
     document.title = livro.nome + " " + estado.cap + " · Estudo Bíblico";
     const interlinear = estado.interlinear && !livro.extra;
     $("btn-inter").setAttribute("aria-pressed", String(Boolean(estado.interlinear)));
@@ -513,6 +514,7 @@
       return;
     }
     if (ev.target.closest(".inline-pal")) return;
+    if (estado.ajustes.soTexto) return; // no modo só texto, tocar no versículo não abre ferramentas
     const gatilho = ev.target.closest(".v, .vi-pt");
     if (!gatilho) return;
     const el = gatilho.closest("[data-v]");
@@ -1759,6 +1761,39 @@
       else vistaEl.innerHTML = '<div class="leitor-interno"><p class="aviso">Esta área ainda não carregou.</p></div>';
     }
   }
+  // ---------- modo só texto: apenas o capítulo, com anterior/próximo ----------
+  function modoSoTexto(ligar) {
+    estado.ajustes.soTexto = Boolean(ligar);
+    if (ligar) {
+      mostrarVista("biblia");
+      fecharPainel();
+      sel = [];
+      palavraSel = null;
+    }
+    salvar();
+    aplicarAjustes();
+    renderLeitor();
+    if (!ligar) renderPainel();
+  }
+  $("btn-ler").addEventListener("click", () => modoSoTexto(true));
+  $("lt-sair").addEventListener("click", () => modoSoTexto(false));
+  $("lt-anterior").addEventListener("click", () => $("btn-anterior").click());
+  $("lt-proximo").addEventListener("click", () => $("btn-proximo").click());
+  $("lt-rotulo").addEventListener("click", () => $("btn-livro").click());
+  // Deslizar o dedo para os lados troca de capítulo (só neste modo, para não atrapalhar a seleção de texto).
+  let toque = null;
+  leitorEl.addEventListener("touchstart", (ev) => {
+    toque = estado.ajustes.soTexto && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null;
+  }, { passive: true });
+  leitorEl.addEventListener("touchend", (ev) => {
+    if (!toque) return;
+    const dx = ev.changedTouches[0].clientX - toque.x;
+    const dy = ev.changedTouches[0].clientY - toque.y;
+    toque = null;
+    if (Math.abs(dx) < 80 || Math.abs(dy) > 50) return;
+    $(dx < 0 ? "btn-proximo" : "btn-anterior").click();
+  }, { passive: true });
+
   // ---------- barra inferior (celular) ----------
   const folhaMais = $("folha-mais");
   const NA_BARRA = ["biblia", "plano", "sermoes"];
@@ -1816,6 +1851,7 @@
     document.documentElement.style.setProperty("--escala", String(a.escala));
     document.body.classList.toggle("foco", Boolean(a.foco));
     document.body.classList.toggle("sem-numeros", Boolean(a.semNumeros));
+    document.body.classList.toggle("so-texto", Boolean(a.soTexto));
     $("aj-tamanho").textContent = Math.round(a.escala * 100) + "%";
     $("aj-foco").checked = Boolean(a.foco);
     $("aj-numeros").checked = Boolean(a.semNumeros);
