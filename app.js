@@ -397,6 +397,36 @@
     return partes.map(([t, quem]) => (quem === "narrador" ? formatarVerso(t) : '<span class="fala f-' + quem + '">' + formatarVerso(t) + "</span>")).join("");
   }
 
+  // ---------- quanto falta para terminar o livro ----------
+  // Com os dados do livro carregados a conta é exata; sem eles, usa a contagem da Bíblia Livre.
+  function restoDoLivro(cod, cap, dados) {
+    const caps = capitulos(cod);
+    const pos = caps.indexOf(Number(cap));
+    if (pos < 0) return null;
+    const vc = (window.VERSICULOS || {})[cod];
+    const versosDe = (c) => (dados ? (dados[c] || []).length : vc ? vc[c - 1] || 0 : null);
+    const soma = (lista) => lista.reduce((s, c) => (s === null || versosDe(c) === null ? null : s + versosDe(c)), 0);
+    const depois = caps.slice(pos + 1);
+    return { pos: pos + 1, total: caps.length, versosCap: versosDe(Number(cap)), versosLivro: soma(caps), capsFaltam: depois.length, versosFaltam: soma(depois) };
+  }
+  const nFmt = new Intl.NumberFormat("pt-BR");
+  function textoFalta(livro, r) {
+    if (!r.capsFaltam) return "Último capítulo de " + livro.nome;
+    return "Faltam " + nFmt.format(r.capsFaltam) + (r.capsFaltam === 1 ? " capítulo" : " capítulos") +
+      (r.versosFaltam !== null ? " e " + nFmt.format(r.versosFaltam) + " versículos" : "") + " para terminar " + livro.nome;
+  }
+  function htmlProgressoLivro(livro, dados) {
+    const r = restoDoLivro(livro.cod, estado.cap, dados);
+    if (!r) return "";
+    return (
+      '<div class="prog-livro"><div class="prog-livro-linha"><span>Capítulo <b>' + r.pos + "</b> de " + r.total +
+      (r.versosCap !== null ? " · " + nFmt.format(r.versosCap) + " versículos" : "") + "</span>" +
+      (r.versosLivro !== null ? '<span class="mudo">' + esc(livro.nome) + ": " + nFmt.format(r.versosLivro) + " versículos</span>" : "") +
+      '</div><div class="prog-livro-barra" role="progressbar" aria-valuemin="0" aria-valuemax="' + r.total + '" aria-valuenow="' + r.pos + '"><i style="width:' +
+      ((r.pos / r.total) * 100).toFixed(1) + '%"></i></div><p class="prog-livro-falta">' + esc(textoFalta(livro, r)) + "</p></div>"
+    );
+  }
+
   // ---------- leitor ----------
   async function renderLeitor(rolarPara) {
     const vez = ++renderizacao;
@@ -430,6 +460,7 @@
     let html = '<div class="leitor-interno">';
     html += "<h1>" + esc(livro.nome) + " " + estado.cap + "</h1>";
     html += '<div class="sub">' + esc(livro.extra ? "Literatura extrabíblica" : livro.grupo) + " · " + esc(VERSOES[estado.versao].nome) + "</div>";
+    html += htmlProgressoLivro(livro, dados);
     if (livro.extra) {
       html +=
         '<p class="aviso">Este livro não faz parte do cânon protestante. Está aqui como leitura histórica: ajuda a entender o período entre os Testamentos. Veja o estudo sobre o cânon na Biblioteca.</p>';
@@ -465,6 +496,8 @@
       }
     }
     html += "</div>";
+    const resto = restoDoLivro(livro.cod, estado.cap, dados);
+    if (resto) html += '<p class="prog-livro-fim">' + esc(textoFalta(livro, resto)) + "</p>";
     html += '<div class="rodape-cap">';
     html += ant ? '<button class="botao" data-ir="-1">‹ ' + rot(ant) + "</button>" : "<span></span>";
     html += prox ? '<button class="botao" data-ir="1">' + rot(prox) + " ›</button>" : "<span></span>";
@@ -1908,6 +1941,7 @@
       const prox = vizinho(1);
       fvCartao.innerHTML =
         '<div class="fv-fim"><p class="fv-ref">' + esc(livro.nome + " " + fv.cap) + "</p><h2>Capítulo concluído</h2>" +
+        (restoDoLivro(fv.cod, fv.cap) ? '<p class="fv-falta">' + esc(textoFalta(livro, restoDoLivro(fv.cod, fv.cap))) + "</p>" : "") +
         (prox ? '<button class="botao principal" data-fv="seguir">Continuar em ' + esc(porCod.get(prox.cod).nome + " " + prox.cap) + " ›</button>" : "") +
         '<button class="botao" data-fv="sair">Sair do foco</button></div>';
       $("fv-pos").textContent = "Fim";

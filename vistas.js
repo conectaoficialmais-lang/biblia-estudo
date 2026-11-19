@@ -650,7 +650,7 @@
     ["Cartas de Paulo", () => ["ROM", "1CO", "2CO", "GAL", "EPH", "PHI", "COL", "1TH", "2TH", "1TI", "2TI", "TIT", "PHM"]],
   ];
   // Rascunho do montador: fica na memória enquanto o app está aberto.
-  const rascunho = { livros: {}, ritmo: "dias", dias: 30, porDia: 3, ate: "", modo: "versos", inicio: "", nome: "" };
+  const rascunho = { livros: {}, ordem: [], ritmo: "dias", dias: 30, porDia: 3, ate: "", modo: "versos", inicio: "", nome: "" };
   function montador(caixa, aoComecar) {
     if (!rascunho.inicio) rascunho.inicio = hojeISO();
     const chipLivro = (l) => '<button class="mt-livro" data-mt-livro="' + l.cod + '" title="' + esc(l.nome) + '" aria-pressed="' + Boolean(rascunho.livros[l.cod]) + '">' + esc(l.abrev) + "</button>";
@@ -675,7 +675,8 @@
       '</div><div id="mt-calc"></div>';
     const tabela = caixa.querySelector("#mt-tabela");
     const calc = caixa.querySelector("#mt-calc");
-    const escolhidos = () => App.livros.filter((l) => rascunho.livros[l.cod]);
+    // A leitura segue a ordem em que os livros foram escolhidos (e que dá para mudar com ↑ ↓).
+    const escolhidos = () => rascunho.ordem.filter((c) => rascunho.livros[c]).map((c) => App.porCod.get(c));
     const trechos = () => escolhidos().map((l) => [l.cod, rascunho.livros[l.cod][0], rascunho.livros[l.cod][1]]);
 
     function desenharTabela() {
@@ -686,16 +687,22 @@
         return;
       }
       let linhas = "";
-      for (const l of ls) {
+      ls.forEach((l, pos) => {
         const caps = App.capitulos(l.cod, "blivre");
         const [ini, fim] = rascunho.livros[l.cod];
         linhas +=
-          '<tr data-mt-linha="' + l.cod + '"><th>' + esc(l.nome) + '</th><td class="mt-faixa">' +
+          '<tr data-mt-linha="' + l.cod + '"><td class="mt-ord"><b>' + (pos + 1) + "</b>" +
+          '<button class="icone" data-mt-mover="-1" data-cod="' + l.cod + '" aria-label="Ler ' + esc(l.nome) + ' antes"' + (pos ? "" : " disabled") + ">↑</button>" +
+          '<button class="icone" data-mt-mover="1" data-cod="' + l.cod + '" aria-label="Ler ' + esc(l.nome) + ' depois"' + (pos < ls.length - 1 ? "" : " disabled") + ">↓</button></td>" +
+          "<th>" + esc(l.nome) + '</th><td class="mt-faixa">' +
           '<input type="number" min="1" max="' + caps.length + '" data-mt-ini="' + l.cod + '" value="' + ini + '" aria-label="' + esc(l.nome) + ': do capítulo">' +
           '<span>a</span><input type="number" min="1" max="' + caps.length + '" data-mt-fim="' + l.cod + '" value="' + fim + '" aria-label="' + esc(l.nome) + ': até o capítulo"></td>' +
           '<td data-mt-caps></td><td data-mt-versos></td></tr>';
-      }
-      const corpo = '<table class="mt-tabela"><thead><tr><th>Livro</th><th>Capítulos a ler</th><th>Cap.</th><th>Versíc.</th></tr></thead><tbody>' + linhas + "</tbody></table>";
+      });
+      const biblica = ls.every((l, i) => !i || App.livros.indexOf(ls[i - 1]) < App.livros.indexOf(l));
+      const topo = '<div class="mt-ordem-topo"><span class="mudo">A leitura segue esta ordem. Use ↑ ↓ para mudar.</span>' +
+        (biblica ? "" : '<button class="link" data-mt-biblica>Pôr na ordem bíblica</button>') + "</div>";
+      const corpo = topo + '<table class="mt-tabela"><thead><tr><th>Ordem</th><th>Livro</th><th>Capítulos a ler</th><th>Cap.</th><th>Vers.</th></tr></thead><tbody>' + linhas + "</tbody></table>";
       tabela.innerHTML = ls.length > 12 ? '<details class="mt-det"><summary>Ver os ' + ls.length + " livros e escolher os capítulos</summary>" + corpo + "</details>" : corpo;
       atualizarLinhas();
     }
@@ -772,8 +779,13 @@
     function marcar(cods, ligar) {
       for (const cod of cods) {
         const caps = App.capitulos(cod, "blivre");
-        if (ligar) rascunho.livros[cod] = rascunho.livros[cod] || [caps[0], caps[caps.length - 1]];
-        else delete rascunho.livros[cod];
+        if (ligar) {
+          rascunho.livros[cod] = rascunho.livros[cod] || [caps[0], caps[caps.length - 1]];
+          if (!rascunho.ordem.includes(cod)) rascunho.ordem.push(cod);
+        } else {
+          delete rascunho.livros[cod];
+          rascunho.ordem = rascunho.ordem.filter((c) => c !== cod);
+        }
       }
       desenharTabela();
       desenharCalc();
@@ -781,6 +793,26 @@
     caixa.addEventListener("click", (ev) => {
       const lv = ev.target.closest("[data-mt-livro]");
       if (lv) return marcar([lv.dataset.mtLivro], !rascunho.livros[lv.dataset.mtLivro]);
+      const mv = ev.target.closest("[data-mt-mover]");
+      if (mv) {
+        const lista = escolhidos().map((l) => l.cod);
+        const i = lista.indexOf(mv.dataset.cod);
+        const j = i + Number(mv.dataset.mtMover);
+        if (i < 0 || j < 0 || j >= lista.length) return;
+        [lista[i], lista[j]] = [lista[j], lista[i]];
+        rascunho.ordem = lista;
+        const aberto = tabela.querySelector("details[open]");
+        desenharTabela();
+        if (aberto) tabela.querySelector("details").open = true;
+        const botao = tabela.querySelector('[data-mt-mover="' + mv.dataset.mtMover + '"][data-cod="' + mv.dataset.cod + '"]');
+        if (botao && !botao.disabled) botao.focus();
+        return desenharCalc();
+      }
+      if (ev.target.closest("[data-mt-biblica]")) {
+        rascunho.ordem = App.livros.map((l) => l.cod).filter((c) => rascunho.livros[c]);
+        desenharTabela();
+        return desenharCalc();
+      }
       const at = ev.target.closest("[data-mt-atalho]");
       if (at) {
         const cods = ATALHOS[Number(at.dataset.mtAtalho)][1]();
@@ -788,6 +820,7 @@
       }
       if (ev.target.closest("[data-mt-limpar]")) {
         rascunho.livros = {};
+        rascunho.ordem = [];
         return marcar([], false);
       }
       const rt = ev.target.closest("[data-mt-ritmo]");
