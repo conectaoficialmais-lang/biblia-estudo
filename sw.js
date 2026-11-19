@@ -2,7 +2,7 @@
 // - Páginas, estilos e scripts: rede primeiro (para receber atualizações), cache se estiver offline.
 // - Dados (textos bíblicos, léxico, referências): cache primeiro, atualizando por trás.
 // - Fontes e biblioteca do mapa (outros sites): cache primeiro. As imagens do mapa não são guardadas.
-const VERSAO = "v5";
+const VERSAO = "v6";
 const CASCA = "biblia-casca-" + VERSAO;
 const DADOS = "biblia-dados-" + VERSAO;
 const FORA = "biblia-fora-" + VERSAO;

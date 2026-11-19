@@ -1122,6 +1122,7 @@
     html += '<button class="ferr-btn" data-f="comparar">Comparar</button>';
     if (!porCod.get(estado.livro).extra) html += '<button class="ferr-btn" data-f="refs">Referências</button>';
     html += '<button class="ferr-btn" data-f="link">Copiar link</button>';
+    html += '<button class="ferr-btn" data-f="foco">◎ Ler em foco daqui</button>';
     html += '<span class="ferr-tipos" aria-label="Classificar o versículo">';
     for (const t of Object.keys(TIPOS_V)) {
       html += '<button class="ferr-btn tipo-' + t + '" data-f="tipo" data-tipo="' + t + '" aria-pressed="' + (estado.tipos[k] === t) + '">' + TIPOS_V[t] + "</button>";
@@ -1343,6 +1344,8 @@
         const saida = t + " (" + refTexto(livro, estado.cap, [v]) + ", " + VERSOES[estado.versao].sigla + ")";
         if (navigator.clipboard) navigator.clipboard.writeText(saida).then(() => piscar(btn, "Copiado"), () => {});
       });
+    } else if (f === "foco") {
+      abrirFoco(v);
     } else if (f === "link") {
       const url = location.origin + location.pathname + "#" + estado.livro + "/" + estado.cap + "/" + v;
       if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => piscar(btn, "Link copiado"), () => {});
@@ -1750,6 +1753,19 @@
     if (h) irPara(h.cod, h.cap, h.verso);
   });
   document.addEventListener("keydown", (ev) => {
+    if (fv.ativo) {
+      if (["ArrowRight", "ArrowDown", " ", "Enter", "PageDown"].includes(ev.key)) {
+        ev.preventDefault();
+        passoFoco(1);
+      } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(ev.key)) {
+        ev.preventDefault();
+        passoFoco(-1);
+      } else if (ev.key === "Escape") {
+        ev.preventDefault();
+        fecharFoco();
+      }
+      return;
+    }
     if (ev.target.matches("input, textarea, select") || dlg.open) return;
     if (ev.key === "ArrowLeft") $("btn-anterior").click();
     if (ev.key === "ArrowRight") $("btn-proximo").click();
@@ -1842,6 +1858,213 @@
     if (Math.abs(dx) < 80 || Math.abs(dy) > 50) return;
     $(dx < 0 ? "btn-proximo" : "btn-anterior").click();
   }, { passive: true });
+
+  // ---------- modo foco: um versículo por vez, grande, com o resto da tela desfocado ----------
+  const fv = { ativo: false, cod: "", cap: 0, versos: [], i: 0, fim: false, vez: 0 };
+  const fvEl = $("foco-verso");
+  const fvCartao = $("fv-cartao");
+  const seletorVerso = (n) => '[data-v="' + CSS.escape(String(n)) + '"]';
+  // Por onde começar: o versículo selecionado ou o primeiro que está visível na tela.
+  function versoDeInicio() {
+    if (sel.length) return sel.slice().sort((a, b) => (Number(a) || 0) - (Number(b) || 0))[0];
+    const topo = leitorEl.getBoundingClientRect().top + 8;
+    for (const el of leitorEl.querySelectorAll("[data-v]")) if (el.getBoundingClientRect().bottom > topo) return el.dataset.v;
+    return null;
+  }
+  async function abrirFoco(inicio) {
+    if (vistaAtual !== "biblia") mostrarVista("biblia");
+    fecharPainel();
+    if (inicio === undefined) inicio = versoDeInicio();
+    const cod = estado.livro;
+    const cap = estado.cap;
+    const vez = ++fv.vez;
+    let versos;
+    try {
+      versos = (await carregarLivro(estado.versao, cod))[cap] || [];
+    } catch (e) {
+      return;
+    }
+    if (vez !== fv.vez || !versos.length) return;
+    let i = inicio == null ? 0 : versos.findIndex((x) => String(x[0]) === String(inicio));
+    if (i < 0) i = 0;
+    const origemEl = leitorEl.querySelector(seletorVerso(versos[i][0]));
+    const origem = origemEl ? origemEl.getBoundingClientRect() : null;
+    Object.assign(fv, { ativo: true, cod, cap, versos, i, fim: false });
+    if (sel.length || palavraSel) {
+      sel = [];
+      palavraSel = null;
+      aplicarSelecaoNoLeitor();
+    }
+    fvEl.classList.remove("sem-dica");
+    fvEl.hidden = false;
+    document.body.classList.add("com-foco-verso");
+    const naTela = origem && origem.height && origem.bottom > 0 && origem.top < window.innerHeight;
+    mostrarVersoFoco(naTela ? "cresce" : "entra", origem);
+  }
+  function mostrarVersoFoco(anim, origem) {
+    const livro = porCod.get(fv.cod);
+    const total = fv.versos.length;
+    if (fv.fim) {
+      const prox = vizinho(1);
+      fvCartao.innerHTML =
+        '<div class="fv-fim"><p class="fv-ref">' + esc(livro.nome + " " + fv.cap) + "</p><h2>Capítulo concluído</h2>" +
+        (prox ? '<button class="botao principal" data-fv="seguir">Continuar em ' + esc(porCod.get(prox.cod).nome + " " + prox.cap) + " ›</button>" : "") +
+        '<button class="botao" data-fv="sair">Sair do foco</button></div>';
+      $("fv-pos").textContent = "Fim";
+    } else {
+      const [n, texto] = fv.versos[fv.i];
+      const cor = estado.marcas[chave(fv.cod, fv.cap, n)];
+      const falas = estado.ajustes.falas && !livro.extra ? falasDoCapitulo(fv.cod, fv.cap, fv.versos) : null;
+      const corpo = falas ? htmlComFalas(falas.get(String(n)), texto) : formatarVerso(texto);
+      fvCartao.innerHTML =
+        '<p class="fv-ref">' + esc(livro.nome + " " + fv.cap + ":" + n) + '</p><p class="fv-texto"><span' + (cor ? ' class="m-' + cor + '"' : "") + ">" + corpo + "</span></p>";
+      $("fv-pos").textContent = fv.i + 1 + " / " + total;
+    }
+    $("fv-prog").style.width = (fv.fim ? 100 : ((fv.i + 1) / total) * 100) + "%";
+    fvEl.querySelector('[data-fv="ant"]').disabled = !fv.fim && fv.i === 0 && !vizinho(-1);
+    fvEl.querySelector('[data-fv="prox"]').disabled = fv.fim && !vizinho(1);
+    ajustarFoco();
+    // Animação: o versículo cresce a partir do lugar dele no texto; depois, cada um sobe no lugar do anterior.
+    fvCartao.classList.remove("fv-a-cresce", "fv-a-entra", "fv-a-prox", "fv-a-ant");
+    if (anim === "cresce" && origem) {
+      const b = fvCartao.getBoundingClientRect();
+      fvCartao.style.setProperty("--dx", Math.round(origem.left + origem.width / 2 - (b.left + b.width / 2)) + "px");
+      fvCartao.style.setProperty("--dy", Math.round(origem.top + origem.height / 2 - (b.top + b.height / 2)) + "px");
+      fvCartao.style.setProperty("--s", String(Math.min(1, Math.max(0.3, origem.width / Math.max(1, b.width)))));
+    }
+    void fvCartao.offsetWidth;
+    fvCartao.classList.add("fv-a-" + anim);
+    acompanharFundo();
+  }
+  // Versículo longo: diminui a letra (até 60%) para caber na tela; abaixo disso o cartão rola.
+  function ajustarFoco() {
+    fvCartao.style.setProperty("--fv-fit", "1");
+    fvCartao.scrollTop = 0;
+    if (!fvCartao.querySelector(".fv-texto")) return;
+    // Ler scrollHeight já força o cálculo do layout, então dá para medir na hora.
+    let f = 1;
+    while (f > 0.6 && fvCartao.scrollHeight > fvCartao.clientHeight + 1) {
+      f = Math.round((f - 0.05) * 100) / 100;
+      fvCartao.style.setProperty("--fv-fit", String(f));
+    }
+  }
+  // A página por trás (desfocada) acompanha o versículo da vez.
+  function acompanharFundo() {
+    leitorEl.querySelectorAll(".fv-atual").forEach((e) => e.classList.remove("fv-atual"));
+    if (!fv.ativo || fv.fim || estado.livro !== fv.cod || estado.cap !== fv.cap) return;
+    const el = leitorEl.querySelector(seletorVerso(fv.versos[fv.i][0]));
+    if (!el) return;
+    el.classList.add("fv-atual");
+    el.scrollIntoView({ block: "center" });
+  }
+  function passoFoco(d) {
+    if (!fv.ativo) return;
+    fvEl.classList.add("sem-dica");
+    if (d > 0) {
+      if (fv.fim) return seguirFoco();
+      if (fv.i < fv.versos.length - 1) {
+        fv.i++;
+        return mostrarVersoFoco("prox");
+      }
+      fv.fim = true;
+      registrarLeitura(fv.cod, fv.cap);
+      return mostrarVersoFoco("prox");
+    }
+    if (fv.fim) {
+      fv.fim = false;
+      return mostrarVersoFoco("ant");
+    }
+    if (fv.i > 0) {
+      fv.i--;
+      return mostrarVersoFoco("ant");
+    }
+    const ant = vizinho(-1);
+    if (ant) trocarCapituloFoco(ant, "ultimo");
+  }
+  function seguirFoco() {
+    const prox = vizinho(1);
+    if (prox) trocarCapituloFoco(prox, "primeiro");
+    else fecharFoco();
+  }
+  async function trocarCapituloFoco(destino, onde) {
+    const vez = ++fv.vez;
+    irPara(destino.cod, destino.cap); // sem versículo: não abre ferramentas nem paleta por trás
+    let versos;
+    try {
+      versos = (await carregarLivro(estado.versao, estado.livro))[estado.cap] || [];
+    } catch (e) {
+      return;
+    }
+    if (vez !== fv.vez || !fv.ativo || !versos.length) return;
+    Object.assign(fv, { cod: estado.livro, cap: estado.cap, versos, i: onde === "ultimo" ? versos.length - 1 : 0, fim: false });
+    mostrarVersoFoco(onde === "ultimo" ? "ant" : "prox");
+    setTimeout(acompanharFundo, 150); // o leitor por trás termina de desenhar o capítulo novo
+  }
+  function fecharFoco() {
+    if (!fv.ativo) return;
+    fv.ativo = false;
+    fv.vez++;
+    fvEl.hidden = true;
+    document.body.classList.remove("com-foco-verso");
+    leitorEl.querySelectorAll(".fv-atual").forEach((e) => e.classList.remove("fv-atual"));
+    if (!fv.fim && estado.livro === fv.cod && estado.cap === fv.cap) {
+      const el = leitorEl.querySelector(seletorVerso(fv.versos[fv.i][0]));
+      if (el) el.scrollIntoView({ block: "center" });
+    }
+  }
+  // Um só ouvinte para os toques: botão faz a ação dele; o resto da tela avança (a borda esquerda volta).
+  let fvGesto = 0;
+  fvEl.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button");
+    if (b) {
+      const a = b.dataset.fv;
+      if (a === "ant") passoFoco(-1);
+      else if (a === "prox") passoFoco(1);
+      else if (a === "seguir") seguirFoco();
+      else if (a === "sair") fecharFoco();
+      return;
+    }
+    if (ev.target.closest(".fv-barra") || Date.now() - fvGesto < 450) return;
+    passoFoco(ev.clientX < window.innerWidth * 0.25 ? -1 : 1);
+  });
+  // Deslizar para os lados troca de versículo; pinça com dois dedos muda o tamanho da letra.
+  let fvToque = null;
+  let fvPinca = null;
+  fvEl.addEventListener("touchstart", (ev) => {
+    fvToque = ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null;
+    fvPinca = ev.touches.length === 2 ? { d: distancia(ev), e: estado.ajustes.escala } : null;
+  }, { passive: true });
+  fvEl.addEventListener("touchmove", (ev) => {
+    if (!fvPinca || ev.touches.length !== 2) return;
+    ev.preventDefault();
+    const nova = Math.min(2.2, Math.max(0.8, (fvPinca.e * distancia(ev)) / fvPinca.d));
+    estado.ajustes.escala = Math.round(nova * 20) / 20;
+    document.documentElement.style.setProperty("--escala", String(estado.ajustes.escala));
+  }, { passive: false });
+  fvEl.addEventListener("touchend", (ev) => {
+    if (fvPinca) {
+      if (ev.touches.length < 2) {
+        fvPinca = null;
+        fvToque = null;
+        fvGesto = Date.now();
+        salvar();
+        aplicarAjustes();
+        ajustarFoco();
+      }
+      return;
+    }
+    if (!fvToque) return;
+    const dx = ev.changedTouches[0].clientX - fvToque.x;
+    const dy = ev.changedTouches[0].clientY - fvToque.y;
+    fvToque = null;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > 60) return;
+    fvGesto = Date.now();
+    passoFoco(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  fvEl.addEventListener("gesturestart", (ev) => ev.preventDefault());
+  window.addEventListener("resize", () => fv.ativo && ajustarFoco());
+  $("btn-foco-verso").addEventListener("click", () => abrirFoco());
+  $("lt-foco").addEventListener("click", () => abrirFoco());
 
   // ---------- barra inferior (celular) ----------
   const folhaMais = $("folha-mais");

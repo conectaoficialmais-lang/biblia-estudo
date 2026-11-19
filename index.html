@@ -51,6 +51,7 @@
     <option value="blivre">Bíblia Livre</option>
     <option value="bpm">Portuguesa Mundial</option>
   </select>
+  <button id="btn-foco-verso" class="botao" title="Ler um versículo por vez, grande, com o resto desfocado">Foco</button>
   <button id="btn-ler" class="botao" title="Mostrar só o texto, para ler sem distrações">Só texto</button>
   <button id="btn-inter" class="botao" aria-pressed="false" title="Mostrar cada palavra do original com a tradução embaixo">Interlinear</button>
   <div class="ajustes-caixa">
@@ -64,7 +65,7 @@
           <button class="icone" data-escala="0.1" aria-label="Aumentar a letra">+</button>
         </span>
       </div>
-      <label class="aj-linha"><span>Modo foco (sem painel)</span><input type="checkbox" id="aj-foco"></label>
+      <label class="aj-linha"><span>Esconder o painel de estudo</span><input type="checkbox" id="aj-foco"></label>
       <label class="aj-linha"><span>Esconder números dos versículos</span><input type="checkbox" id="aj-numeros"></label>
       <label class="aj-linha"><span>Cores de quem está falando</span><input type="checkbox" id="aj-falas"></label>
     </div>
@@ -100,9 +101,20 @@
 </div>
 <div class="leitura-barra" aria-label="Modo só texto">
   <button id="lt-anterior" class="icone" aria-label="Capítulo anterior">‹</button>
+  <button id="lt-foco" class="icone" aria-label="Ler um versículo por vez" title="Foco: um versículo por vez">◎</button>
   <button id="lt-rotulo" class="lt-rotulo" title="Escolher livro e capítulo">Gênesis 1</button>
   <button id="lt-proximo" class="icone" aria-label="Próximo capítulo">›</button>
   <button id="lt-sair" class="icone" aria-label="Sair do modo só texto" title="Sair do modo só texto">×</button>
+</div>
+<div id="foco-verso" class="foco-verso" hidden role="dialog" aria-label="Leitura em foco, um versículo por vez">
+  <div class="fv-palco"><div id="fv-cartao" class="fv-cartao" aria-live="polite"></div></div>
+  <p class="fv-dica">Toque para avançar · toque na borda esquerda para voltar</p>
+  <div class="fv-barra">
+    <button class="icone" data-fv="ant" aria-label="Versículo anterior">‹</button>
+    <div class="fv-meio"><span id="fv-pos">1 / 1</span><i class="fv-trilho"><b id="fv-prog"></b></i></div>
+    <button class="icone" data-fv="prox" aria-label="Próximo versículo">›</button>
+    <button class="icone" data-fv="sair" aria-label="Sair do foco" title="Sair do foco">×</button>
+  </div>
 </div>
 <div id="folha-mais" class="folha-mais" hidden>
   <div class="folha-caixa" role="menu" aria-label="Outras áreas">

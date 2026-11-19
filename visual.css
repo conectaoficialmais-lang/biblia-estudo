@@ -322,3 +322,57 @@ body.so-texto .leitura-barra, .lt-cores {
 .cor[data-ltcor="azul"] { background: #6aa9f2; }
 .cor[data-ltcor="rosa"] { background: #f28aa5; }
 .cor[data-ltcor=""] { background: color-mix(in srgb, var(--tinta) 10%, transparent); font-size: 15px; color: var(--tinta); }
+
+/* ===== Modo foco: um versículo por vez ===== */
+.foco-verso[hidden] { display: none; }
+.foco-verso {
+  position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+  overscroll-behavior: contain; touch-action: pan-y; cursor: pointer; -webkit-user-select: none; user-select: none;
+  background: color-mix(in srgb, var(--papel) 58%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
+  animation: fv-aparece 0.25s ease-out;
+}
+@keyframes fv-aparece { from { opacity: 0; } }
+.fv-palco { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: max(26px, env(safe-area-inset-top)) 22px 10px; }
+.fv-cartao { --fv-fit: 1; width: min(780px, 100%); max-height: 100%; overflow-y: auto; text-align: center; padding: 6px 4px; overscroll-behavior: contain; }
+.fv-ref { margin: 0 0 18px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--acento); }
+.fv-texto {
+  margin: 0; color: var(--tinta); font-family: var(--serifa); font-weight: 500; line-height: 1.45; letter-spacing: -0.012em; text-wrap: pretty;
+  font-size: calc(clamp(24px, 5.6vw, 40px) * var(--escala) * var(--fv-fit));
+}
+.fv-texto span[class^="m-"] { border-radius: 8px; padding: 0 4px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.fv-texto .m-amarelo { background: var(--m-amarelo); }
+.fv-texto .m-verde { background: var(--m-verde); }
+.fv-texto .m-azul { background: var(--m-azul); }
+.fv-texto .m-rosa { background: var(--m-rosa); }
+.fv-fim h2 { font-family: var(--titulo); font-size: 32px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 24px; }
+.fv-fim .botao { display: block; margin: 0 auto 10px; padding: 13px 22px; font-size: 15px; }
+.fv-a-cresce { animation: fv-cresce 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes fv-cresce { from { opacity: 0.15; transform: translate(var(--dx, 0), var(--dy, 0)) scale(var(--s, 0.6)); } }
+.fv-a-entra { animation: fv-entra 0.35s ease-out; }
+@keyframes fv-entra { from { opacity: 0; transform: scale(0.94); } }
+.fv-a-prox { animation: fv-prox 0.3s ease-out; }
+@keyframes fv-prox { from { opacity: 0; transform: translateY(22px); } }
+.fv-a-ant { animation: fv-ant 0.3s ease-out; }
+@keyframes fv-ant { from { opacity: 0; transform: translateY(-22px); } }
+.fv-dica { margin: 0 0 10px; text-align: center; font-size: 12px; color: var(--tinta-2); }
+.foco-verso.sem-dica .fv-dica { visibility: hidden; }
+.fv-barra {
+  align-self: center; display: flex; align-items: center; gap: 6px; cursor: default; max-width: calc(100vw - 20px);
+  margin: 0 10px calc(16px + env(safe-area-inset-bottom)); padding: 6px; border-radius: 99px;
+  background: color-mix(in srgb, var(--cartao) 55%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8);
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2), inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent);
+}
+.fv-barra .icone { flex: none; width: 44px; height: 44px; font-size: 20px; border-radius: 50%; box-shadow: none; border-color: transparent; background: color-mix(in srgb, var(--tinta) 9%, transparent); }
+.fv-barra .icone[disabled] { opacity: 0.35; cursor: default; }
+.fv-barra [data-fv="sair"] { background: none; color: var(--tinta-2); }
+.fv-meio { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 96px; padding: 0 8px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fv-trilho { display: block; width: 84px; height: 4px; border-radius: 99px; overflow: hidden; background: color-mix(in srgb, var(--tinta) 14%, transparent); }
+.fv-trilho b { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--acento); transition: width 0.25s; }
+.leitor .fv-atual { background: var(--acento-suave); border-radius: 6px; }
+#lt-foco { font-size: 18px; }
+@media (prefers-reduced-motion: reduce) {
+  .foco-verso, .fv-cartao { animation: none !important; }
+}
