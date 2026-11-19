@@ -1533,7 +1533,7 @@
         for (const k of lista) if (/^[0-9A-Z]{3}\.\d+$/.test(k) && !atual.includes(k)) atual.push(k);
       }
       if (!estado.plano && dados.plano && typeof dados.plano.id === "string") {
-        estado.plano = { id: dados.plano.id, inicio: String(dados.plano.inicio || ""), feitos: Object.assign({}, dados.plano.feitos) };
+        estado.plano = Object.assign({}, dados.plano, { id: dados.plano.id, inicio: String(dados.plano.inicio || ""), feitos: Object.assign({}, dados.plano.feitos) });
       }
       salvar();
       aplicarSelecaoNoLeitor();

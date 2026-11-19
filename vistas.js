@@ -606,19 +606,265 @@
     );
   }
 
+  // ---------- plano próprio: livros escolhidos, dias, totais de capítulos e versículos ----------
+  const versosCap = (cod, cap) => ((window.VERSICULOS || {})[cod] || [])[cap - 1] || 0;
+  const numFmt = new Intl.NumberFormat("pt-BR");
+  const MIN_POR_VERSO = 0.14; // leitura em voz baixa, em média
+  function capsDosTrechos(trechos) {
+    const caps = [];
+    for (const [cod, ini, fim] of trechos) for (const c of App.capitulos(cod, "blivre")) if (c >= ini && c <= fim) caps.push([cod, c]);
+    return caps;
+  }
+  // Reparte em ordem. "versos": dias com tamanho parecido; "caps": mesmo número de capítulos. Nenhum dia fica vazio.
+  function dividir(caps, dias, modo) {
+    const saida = Array.from({ length: dias }, () => []);
+    if (!caps.length) return saida;
+    const pesos = caps.map(([c, k]) => (modo === "versos" ? Math.max(1, versosCap(c, k)) : 1));
+    const total = pesos.reduce((a, b) => a + b, 0);
+    let d = 0;
+    let acc = 0;
+    caps.forEach((cap, i) => {
+      if (saida[d].length && d < dias - 1) {
+        const faltamCaps = caps.length - i;
+        const faltamDias = dias - d - 1;
+        if (faltamCaps <= faltamDias || acc + pesos[i] / 2 > ((d + 1) * total) / dias) d++;
+      }
+      saida[d].push(cap);
+      acc += pesos[i];
+    });
+    return saida;
+  }
+  function planoProprio(p) {
+    if (!p || p.id !== "meu" || !Array.isArray(p.trechos) || !p.trechos.length) return null;
+    return { id: "meu", nome: p.nome || "Meu plano", dias: Math.max(1, Number(p.dias) || 1), trechos: p.trechos, modo: p.modo };
+  }
+  const totaisDe = (caps) => ({ caps: caps.length, versos: caps.reduce((s, [c, k]) => s + versosCap(c, k), 0) });
+  const minutos = (versos) => Math.max(1, Math.round(versos * MIN_POR_VERSO));
+  const textoTotais = (t) => numFmt.format(t.caps) + (t.caps === 1 ? " capítulo · " : " capítulos · ") + numFmt.format(t.versos) + " versículos";
+
+  const ATALHOS = [
+    ["Bíblia toda", () => App.livros.map((l) => l.cod)],
+    ["Antigo Testamento", () => AT],
+    ["Novo Testamento", () => NT],
+    ["Evangelhos", () => ["MAT", "MAR", "LUK", "JOH"]],
+    ["Cartas de Paulo", () => ["ROM", "1CO", "2CO", "GAL", "EPH", "PHI", "COL", "1TH", "2TH", "1TI", "2TI", "TIT", "PHM"]],
+  ];
+  // Rascunho do montador: fica na memória enquanto o app está aberto.
+  const rascunho = { livros: {}, ritmo: "dias", dias: 30, porDia: 3, ate: "", modo: "versos", inicio: "", nome: "" };
+  function montador(caixa, aoComecar) {
+    if (!rascunho.inicio) rascunho.inicio = hojeISO();
+    const chipLivro = (l) => '<button class="mt-livro" data-mt-livro="' + l.cod + '" title="' + esc(l.nome) + '" aria-pressed="' + Boolean(rascunho.livros[l.cod]) + '">' + esc(l.abrev) + "</button>";
+    caixa.innerHTML =
+      '<p class="mudo">Escolha um ou mais livros e quanto tempo quer levar. O app reparte a leitura pelos dias e mostra o total de capítulos e versículos.</p>' +
+      '<div class="chips mt-atalhos">' + ATALHOS.map((a, i) => '<button class="chip" data-mt-atalho="' + i + '">' + a[0] + "</button>").join("") +
+      '<button class="chip" data-mt-limpar>Limpar</button></div>' +
+      '<p class="mt-grupo">Antigo Testamento</p><div class="mt-livros">' + App.livros.slice(0, 39).map(chipLivro).join("") + "</div>" +
+      '<p class="mt-grupo">Novo Testamento</p><div class="mt-livros">' + App.livros.slice(39).map(chipLivro).join("") + "</div>" +
+      '<div id="mt-tabela"></div>' +
+      '<div class="mt-controles">' +
+      '<div class="mt-campo"><span>Ritmo</span><div class="mt-seg" role="group" aria-label="Ritmo">' +
+      [["dias", "Em quantos dias"], ["porDia", "Capítulos por dia"], ["ate", "Até uma data"]].map(([k, r]) => '<button data-mt-ritmo="' + k + '" aria-pressed="' + (rascunho.ritmo === k) + '">' + r + "</button>").join("") +
+      '</div><div class="mt-ritmo-valor">' +
+      '<label data-quando="dias"><input type="number" min="1" max="3650" inputmode="numeric" data-mt="dias" value="' + rascunho.dias + '"> dias</label>' +
+      '<label data-quando="porDia"><input type="number" min="1" max="200" inputmode="numeric" data-mt="porDia" value="' + rascunho.porDia + '"> capítulos por dia</label>' +
+      '<label data-quando="ate">terminar em <input type="date" data-mt="ate" value="' + esc(rascunho.ate) + '"></label></div></div>' +
+      '<div class="mt-campo"><span>Dividir os dias</span><div class="mt-seg" role="group" aria-label="Dividir os dias">' +
+      [["versos", "Pelo tamanho (versículos)"], ["caps", "Mesmo nº de capítulos"]].map(([k, r]) => '<button data-mt-modo="' + k + '" aria-pressed="' + (rascunho.modo === k) + '">' + r + "</button>").join("") + "</div></div>" +
+      '<div class="mt-linha"><label class="mt-campo"><span>Começa em</span><input type="date" data-mt="inicio" value="' + esc(rascunho.inicio) + '"></label>' +
+      '<label class="mt-campo mt-nome"><span>Nome do plano</span><input type="text" maxlength="60" data-mt="nome" placeholder="Opcional" value="' + esc(rascunho.nome) + '"></label></div>' +
+      '</div><div id="mt-calc"></div>';
+    const tabela = caixa.querySelector("#mt-tabela");
+    const calc = caixa.querySelector("#mt-calc");
+    const escolhidos = () => App.livros.filter((l) => rascunho.livros[l.cod]);
+    const trechos = () => escolhidos().map((l) => [l.cod, rascunho.livros[l.cod][0], rascunho.livros[l.cod][1]]);
+
+    function desenharTabela() {
+      const ls = escolhidos();
+      caixa.querySelectorAll("[data-mt-livro]").forEach((b) => b.setAttribute("aria-pressed", String(Boolean(rascunho.livros[b.dataset.mtLivro]))));
+      if (!ls.length) {
+        tabela.innerHTML = "";
+        return;
+      }
+      let linhas = "";
+      for (const l of ls) {
+        const caps = App.capitulos(l.cod, "blivre");
+        const [ini, fim] = rascunho.livros[l.cod];
+        linhas +=
+          '<tr data-mt-linha="' + l.cod + '"><th>' + esc(l.nome) + '</th><td class="mt-faixa">' +
+          '<input type="number" min="1" max="' + caps.length + '" data-mt-ini="' + l.cod + '" value="' + ini + '" aria-label="' + esc(l.nome) + ': do capítulo">' +
+          '<span>a</span><input type="number" min="1" max="' + caps.length + '" data-mt-fim="' + l.cod + '" value="' + fim + '" aria-label="' + esc(l.nome) + ': até o capítulo"></td>' +
+          '<td data-mt-caps></td><td data-mt-versos></td></tr>';
+      }
+      const corpo = '<table class="mt-tabela"><thead><tr><th>Livro</th><th>Capítulos a ler</th><th>Cap.</th><th>Versíc.</th></tr></thead><tbody>' + linhas + "</tbody></table>";
+      tabela.innerHTML = ls.length > 12 ? '<details class="mt-det"><summary>Ver os ' + ls.length + " livros e escolher os capítulos</summary>" + corpo + "</details>" : corpo;
+      atualizarLinhas();
+    }
+    function atualizarLinhas() {
+      tabela.querySelectorAll("[data-mt-linha]").forEach((tr) => {
+        const [cod, ini, fim] = trechos().find((t) => t[0] === tr.dataset.mtLinha) || [];
+        const t = totaisDe(capsDosTrechos([[cod, ini, fim]]));
+        tr.querySelector("[data-mt-caps]").textContent = numFmt.format(t.caps);
+        tr.querySelector("[data-mt-versos]").textContent = numFmt.format(t.versos);
+      });
+    }
+    // Quantos dias o plano terá, conforme o ritmo escolhido.
+    function diasDoRitmo(nCaps) {
+      let d;
+      if (rascunho.ritmo === "porDia") d = Math.ceil(nCaps / Math.max(1, Number(rascunho.porDia) || 1));
+      else if (rascunho.ritmo === "ate") {
+        if (!rascunho.ate || !rascunho.inicio) return null;
+        d = Math.round((dataDoDia(rascunho.ate, 0) - dataDoDia(rascunho.inicio, 0)) / 86400000) + 1;
+      } else d = Math.round(Number(rascunho.dias) || 0);
+      return d >= 1 ? d : null;
+    }
+    function desenharCalc() {
+      caixa.querySelectorAll("[data-quando]").forEach((l) => (l.hidden = l.dataset.quando !== rascunho.ritmo));
+      const tr = trechos();
+      const caps = capsDosTrechos(tr);
+      if (!caps.length) {
+        calc.innerHTML = '<p class="mudo mt-vazio">Nenhum livro escolhido ainda.</p>';
+        return;
+      }
+      const t = totaisDe(caps);
+      const bloco = (n, rot) => '<div class="mt-num"><strong>' + n + "</strong><span>" + rot + "</span></div>";
+      let html = '<div class="mt-totais">' + bloco(tr.length, tr.length === 1 ? "livro" : "livros") + bloco(numFmt.format(t.caps), "capítulos") +
+        bloco(numFmt.format(t.versos), "versículos") + bloco("~" + numFmt.format(Math.round(minutos(t.versos) / 6) / 10), "horas de leitura") + "</div>";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rascunho.inicio)) {
+        calc.innerHTML = html + '<p class="aviso">Escolha a data de início.</p>';
+        return;
+      }
+      let dias = diasDoRitmo(caps.length);
+      if (!dias) {
+        calc.innerHTML = html + '<p class="aviso">' + (rascunho.ritmo === "ate" ? "Escolha a data final, depois da data de início." : "Informe um número a partir de 1.") + "</p>";
+        return;
+      }
+      let aviso = "";
+      if (dias > caps.length) {
+        aviso = '<p class="mudo">São ' + caps.length + " capítulos, então o plano fica com " + caps.length + " dias (um capítulo por dia).</p>";
+        dias = caps.length;
+      }
+      const partes = dividir(caps, dias, rascunho.modo);
+      const versDia = partes.map((p) => p.reduce((s, [c, k]) => s + versosCap(c, k), 0));
+      const fmt = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", year: "numeric" });
+      const fmtCurto = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
+      const mediaCaps = t.caps / dias;
+      html +=
+        '<div class="mt-resumo"><p><b>' + numFmt.format(dias) + (dias === 1 ? " dia" : " dias") + "</b>, de " + fmt.format(dataDoDia(rascunho.inicio, 0)) + " a " +
+        fmt.format(dataDoDia(rascunho.inicio, dias - 1)) + ".</p><p>Por dia: cerca de <b>" + numFmt.format(Math.round(mediaCaps * 10) / 10) + " capítulos</b> e <b>" +
+        numFmt.format(Math.round(t.versos / dias)) + " versículos</b>, uns " + minutos(t.versos / dias) + " min (o dia mais longo tem " + numFmt.format(Math.max(...versDia)) +
+        " versículos).</p></div>" + aviso;
+      const mostrar = dias <= 8 ? partes.map((_, i) => i) : [0, 1, 2, 3, -1, dias - 2, dias - 1];
+      html += '<ol class="mt-previa">' + mostrar.map((i) => {
+        if (i === -1) return '<li class="mt-reticencias">…</li>';
+        const grupos = gruposDoDia(partes[i]).map((g) => App.porCod.get(g.cod).abrev + " " + g.ini + (g.fim > g.ini ? "–" + g.fim : "")).join(", ");
+        return "<li><b>Dia " + (i + 1) + '</b><span class="mudo">' + fmtCurto.format(dataDoDia(rascunho.inicio, i)) + "</span><span>" + esc(grupos) + '</span><small>' + versDia[i] + " vers.</small></li>";
+      }).join("") + "</ol>";
+      html += '<p><button class="botao principal" data-mt-comecar>Começar este plano</button></p>';
+      calc.innerHTML = html;
+    }
+    function nomePadrao() {
+      const ls = escolhidos();
+      if (ls.length === App.livros.length) return "Bíblia toda";
+      if (ls.length === 1) return "Ler " + ls[0].nome;
+      if (ls.length <= 3) return ls.slice(0, -1).map((l) => l.nome).join(", ") + " e " + ls[ls.length - 1].nome;
+      return "Meu plano (" + ls.length + " livros)";
+    }
+    function marcar(cods, ligar) {
+      for (const cod of cods) {
+        const caps = App.capitulos(cod, "blivre");
+        if (ligar) rascunho.livros[cod] = rascunho.livros[cod] || [caps[0], caps[caps.length - 1]];
+        else delete rascunho.livros[cod];
+      }
+      desenharTabela();
+      desenharCalc();
+    }
+    caixa.addEventListener("click", (ev) => {
+      const lv = ev.target.closest("[data-mt-livro]");
+      if (lv) return marcar([lv.dataset.mtLivro], !rascunho.livros[lv.dataset.mtLivro]);
+      const at = ev.target.closest("[data-mt-atalho]");
+      if (at) {
+        const cods = ATALHOS[Number(at.dataset.mtAtalho)][1]();
+        return marcar(cods, !cods.every((c) => rascunho.livros[c]));
+      }
+      if (ev.target.closest("[data-mt-limpar]")) {
+        rascunho.livros = {};
+        return marcar([], false);
+      }
+      const rt = ev.target.closest("[data-mt-ritmo]");
+      if (rt) {
+        rascunho.ritmo = rt.dataset.mtRitmo;
+        caixa.querySelectorAll("[data-mt-ritmo]").forEach((b) => b.setAttribute("aria-pressed", String(b === rt)));
+        return desenharCalc();
+      }
+      const md = ev.target.closest("[data-mt-modo]");
+      if (md) {
+        rascunho.modo = md.dataset.mtModo;
+        caixa.querySelectorAll("[data-mt-modo]").forEach((b) => b.setAttribute("aria-pressed", String(b === md)));
+        return desenharCalc();
+      }
+      if (ev.target.closest("[data-mt-comecar]")) {
+        const tr = trechos();
+        const caps = capsDosTrechos(tr);
+        const dias = Math.min(diasDoRitmo(caps.length) || 0, caps.length);
+        if (!dias) return;
+        aoComecar({ id: "meu", nome: rascunho.nome.trim() || nomePadrao(), inicio: rascunho.inicio || hojeISO(), feitos: {}, dias, modo: rascunho.modo, trechos: tr });
+      }
+    });
+    caixa.addEventListener("input", (ev) => {
+      const c = ev.target;
+      if (c.dataset.mt) {
+        rascunho[c.dataset.mt] = c.value;
+        if (c.dataset.mt !== "nome") desenharCalc();
+        return;
+      }
+      const cod = c.dataset.mtIni || c.dataset.mtFim;
+      if (!cod || !rascunho.livros[cod]) return;
+      const max = App.capitulos(cod, "blivre").length;
+      const n = Math.min(max, Math.max(1, Math.round(Number(c.value) || 0)));
+      if (!c.value) return; // deixa o campo vazio enquanto digita
+      const faixa = rascunho.livros[cod];
+      if (c.dataset.mtIni) faixa[0] = n;
+      else faixa[1] = n;
+      if (faixa[0] > faixa[1]) faixa[c.dataset.mtIni ? 1 : 0] = n;
+      atualizarLinhas();
+      desenharCalc();
+    });
+    // Ao sair do campo, mostra o valor que valeu (por exemplo, 80 vira 50 em Gênesis).
+    caixa.addEventListener("change", (ev) => {
+      const cod = ev.target.dataset.mtIni || ev.target.dataset.mtFim;
+      if (cod && rascunho.livros[cod]) {
+        const linha = ev.target.closest("tr");
+        linha.querySelector("[data-mt-ini]").value = rascunho.livros[cod][0];
+        linha.querySelector("[data-mt-fim]").value = rascunho.livros[cod][1];
+      }
+    });
+    desenharTabela();
+    desenharCalc();
+  }
+
   window.Vistas.plano = function (el) {
     const estado = App.estado;
-    const plano = estado.plano && PLANOS.find((p) => p.id === estado.plano.id);
+    const plano = estado.plano && (PLANOS.find((p) => p.id === estado.plano.id) || planoProprio(estado.plano));
+    const comecar = (novo) => {
+      if (estado.plano && !confirm("Começar este plano apaga o progresso do plano atual. Continuar?")) return;
+      estado.plano = novo;
+      App.salvar();
+      window.Vistas.plano(el);
+    };
 
     if (!plano) {
       const r = raiz(
         el,
         "plano-layout",
-        "<h1>Plano de leitura</h1>" + htmlLeitura() + "<h3>Planos</h3><p class=\"mudo\">Escolha um plano. Ele começa hoje e você marca cada dia conforme lê.</p>" +
+        "<h1>Plano de leitura</h1>" + htmlLeitura() +
+          '<h3>Montar meu plano</h3><section class="cartao montador" id="montador"></section>' +
+          "<h3>Planos prontos</h3><p class=\"mudo\">Começam hoje e você marca cada dia conforme lê.</p>" +
           '<div class="planos">' +
-          PLANOS.map((p) => '<div class="cartao"><strong>' + esc(p.nome) + '</strong><p class="mudo">' + p.dias + " dias</p><p>" + esc(p.desc) +
+          PLANOS.map((p) => '<div class="cartao"><strong>' + esc(p.nome) + '</strong><p class="mudo">' + p.dias + " dias · " +
+            textoTotais(totaisDe(p.livros.flatMap((cod) => App.capitulos(cod, "blivre").map((c) => [cod, c])))) + "</p><p>" + esc(p.desc) +
             '</p><button class="botao" data-comecar="' + p.id + '">Começar</button></div>').join("") + "</div>"
       );
+      montador(r.querySelector("#montador"), comecar);
       r.addEventListener("click", (ev) => {
         const b = ev.target.closest("[data-comecar]");
         if (!b) return;
@@ -629,7 +875,8 @@
       return;
     }
 
-    const dias = leiturasDoPlano(plano);
+    const dias = plano.trechos ? dividir(capsDosTrechos(plano.trechos), plano.dias, plano.modo) : leiturasDoPlano(plano);
+    const totalPlano = totaisDe(dias.flat());
     const feitos = estado.plano.feitos || (estado.plano.feitos = {});
     const diaHoje = Math.round((dataDoDia(hojeISO(), 0) - dataDoDia(estado.plano.inicio, 0)) / 86400000);
     const fmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
@@ -644,18 +891,21 @@
       linhas +=
         '<div class="' + cls + '" data-dia="' + d + '"><label><input type="checkbox" data-feito="' + d + '"' + (feitos[d] ? " checked" : "") + ">" +
         "<span><b>Dia " + (d + 1) + "</b> · " + fmt.format(dataDoDia(estado.plano.inicio, d)) + (d === diaHoje ? " · hoje" : "") + "</span></label>" +
-        '<div class="chips">' + chips(caps) + "</div></div>";
+        '<div class="chips">' + chips(caps) + "</div>" + '<small class="mudo dia-vers">' + numFmt.format(caps.reduce((s, [c, k]) => s + versosCap(c, k), 0)) + " vers.</small></div>";
     });
     const r = raiz(
       el,
       "plano-layout",
-      "<h1>" + esc(plano.nome) + '</h1><p class="mudo" id="plano-resumo"></p>' +
+      "<h1>" + esc(plano.nome) + '</h1><p class="mudo">' + textoTotais(totalPlano) + " · " + plano.dias + " dias · cerca de " +
+        minutos(totalPlano.versos / plano.dias) + ' min por dia</p><p class="mudo" id="plano-resumo"></p>' +
         '<div class="barra-prog"><i id="plano-barra"></i></div>' +
         '<p class="ferr"><button class="botao" data-ir-hoje>Ir para hoje</button><button class="botao" data-ir-proximo>Próximo não lido</button>' +
         '<button class="botao" data-trocar>Trocar de plano</button></p>' +
         '<div id="plano-leitura">' + htmlLeitura() + "</div>" +
-        '<h3>Dias do plano</h3><div class="dias">' + linhas + "</div>"
+        '<h3>Dias do plano</h3><div class="dias">' + linhas + "</div>" +
+        '<details class="cartao montador-det"><summary>Montar outro plano</summary><section class="montador" id="montador"></section></details>'
     );
+    montador(r.querySelector("#montador"), comecar);
     function resumo() {
       const n = Object.keys(feitos).length;
       const atraso = Math.min(diaHoje + 1, plano.dias) - n;
