@@ -85,7 +85,186 @@
     return cache.get(url);
   }
   function carregarLivro(versao, cod) {
-    return carregarArquivo("dados/texto/" + versao + "/" + cod + ".json");
+    const nome = nomeColada(versao);
+    if (nome === null) return carregarArquivo("dados/texto/" + versao + "/" + cod + ".json");
+    // Tradução colada: os capítulos colados por cima da Bíblia Livre (que cobre os que faltam).
+    return carregarArquivo("dados/texto/blivre/" + cod + ".json").then((base) => {
+      const livro = Object.assign({}, base);
+      const colados = new Set();
+      for (const [k, versos] of Object.entries(estado.colados || {})) {
+        const p = partesColado(k);
+        if (p && p.nome === nome && p.cod === cod && Array.isArray(versos) && versos.length) {
+          livro[p.cap] = versos;
+          colados.add(p.cap);
+        }
+      }
+      Object.defineProperty(livro, "_colados", { value: colados });
+      return livro;
+    });
+  }
+
+  // ---------- texto colado de outra tradução ----------
+  // Fica em estado.colados["NVI|2KI.10"] = [[1, "texto"], ...]: só neste aparelho e na sincronização do usuário.
+  const PREFIXO_COL = "col:";
+  function nomeColada(versao) {
+    return String(versao || "").startsWith(PREFIXO_COL) ? String(versao).slice(PREFIXO_COL.length) : null;
+  }
+  function partesColado(k) {
+    const m = String(k).match(/^(.+)\|([A-Z0-9]+)\.(\d+)$/);
+    return m ? { nome: m[1], cod: m[2], cap: Number(m[3]) } : null;
+  }
+  function nomesColados() {
+    const s = new Set();
+    for (const k of Object.keys(estado.colados || {})) {
+      const p = partesColado(k);
+      if (p) s.add(p.nome);
+    }
+    return [...s].sort();
+  }
+  function registrarVersoesColadas() {
+    for (const k of Object.keys(VERSOES)) if (VERSOES[k].colada) delete VERSOES[k];
+    const nomes = nomesColados();
+    for (const nome of nomes) {
+      VERSOES[PREFIXO_COL + nome] = {
+        nome: nome + " (colada)", sigla: nome, colada: nome,
+        credito: nome + ": texto colado por você, para uso pessoal; os direitos da tradução são da editora. Os capítulos ainda não colados aparecem na Bíblia Livre.",
+      };
+    }
+    if (!VERSOES[estado.versao]) estado.versao = "blivre";
+    const s = $("sel-versao");
+    if (!s) return;
+    s.innerHTML =
+      '<option value="blivre">Bíblia Livre</option><option value="bpm">Portuguesa Mundial</option>' +
+      nomes.map((n) => '<option value="' + esc(PREFIXO_COL + n) + '">' + esc(n) + " (colada)</option>").join("") +
+      '<option value="__colar">＋ Colar outra tradução…</option>';
+    s.value = estado.versao;
+  }
+  const SOBRESCRITOS = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+  // Separa o texto colado em versículos pelos números (¹ ² ³ ou 1 2 3), que precisam vir em sequência.
+  // Uma linha com a referência ("2 Reis 10:1-36") no fim ou no começo preenche livro e capítulo.
+  function lerColado(bruto) {
+    const linhas = String(bruto || "").replace(/\r/g, "").split("\n").map((s) => s.trim()).filter(Boolean);
+    const comoRef = (linha) => {
+      const m = linha.match(/^(\d?\s*[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .]*?)\s+(\d{1,3})(?:\s*:\s*\d+(?:\s*[-–]\s*\d+)?)?(?:\s*\(?[A-Z]{2,8}\)?)?$/);
+      const l = m && acharLivro(m[1]);
+      return l && !l.extra ? { cod: l.cod, cap: Number(m[2]) } : null;
+    };
+    let ref = null;
+    if (linhas.length && (ref = comoRef(linhas[linhas.length - 1]))) linhas.pop();
+    else if (linhas.length && (ref = comoRef(linhas[0]))) linhas.shift();
+    // Números sobrescritos são sempre de versículo: ganham uma marca (\u0001) para não se confundir com números do texto.
+    const s = linhas.join(" ").replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (m) => " \u0001" + [...m].map((c) => SOBRESCRITOS.indexOf(c)).join("") + " ");
+    let marcas = [];
+    const re = /(^|\s)(\u0001?)(\d{1,3})(?=\s)/g;
+    let m;
+    while ((m = re.exec(s))) {
+      const ini = m.index + m[1].length;
+      const antes = s.slice(0, ini).trim().slice(-1);
+      // Número comum logo depois de uma palavra ("com 3 coisas") provavelmente é do texto, não do versículo.
+      marcas.push({ n: Number(m[3]), ini, fim: re.lastIndex, sup: Boolean(m[2]), boa: Boolean(m[2]) || !antes || !/[\p{L}\p{N}]/u.test(antes) });
+    }
+    if (marcas.some((x) => x.sup)) marcas = marcas.filter((x) => x.sup);
+    const versos = [];
+    if (marcas.length) {
+      const uns = marcas.filter((x) => x.n === 1);
+      const escolhidas = [uns.find((x) => x.boa) || uns[0] || marcas.find((x) => x.boa) || marcas[0]];
+      for (;;) {
+        const ult = escolhidas[escolhidas.length - 1];
+        const cand = marcas.filter((x) => x.ini > ult.ini && x.n === ult.n + 1);
+        if (!cand.length) break;
+        escolhidas.push(cand.find((x) => x.boa) || cand[0]);
+      }
+      escolhidas.forEach((x, i) => {
+        const fim = i + 1 < escolhidas.length ? escolhidas[i + 1].ini : s.length;
+        const texto = s.slice(x.fim, fim).replace(/\u0001/g, "").replace(/\s+/g, " ").trim();
+        if (texto) versos.push([x.n, texto]);
+      });
+    }
+    return { ref, versos };
+  }
+  function abrirColar() {
+    let dlg = $("dlg-colar");
+    if (!dlg) {
+      dlg = document.createElement("dialog");
+      dlg.id = "dlg-colar";
+      dlg.className = "dlg-colar";
+      document.body.appendChild(dlg);
+    }
+    const atual = porCod.get(estado.livro);
+    const livroIni = atual && !atual.extra ? atual : livros[0];
+    const capIni = atual && !atual.extra ? estado.cap : 1;
+    const nomeIni = (VERSOES[estado.versao] || {}).colada || nomesColados()[0] || "NVI";
+    dlg.innerHTML =
+      '<form method="dialog" class="colar-form">' +
+      "<h2>Colar outra tradução</h2>" +
+      '<p class="mudo">Copie um capítulo de outro app ou site e cole aqui. O texto fica guardado só neste aparelho (e na sua sincronização, se estiver ligada); ele não vai para o site.</p>' +
+      '<div class="colar-linha"><label class="colar-campo"><span>Tradução</span><input class="campo" id="col-nome" maxlength="12" autocomplete="off" value="' + esc(nomeIni) + '"></label>' +
+      '<label class="colar-campo"><span>Livro</span><select class="campo" id="col-livro">' +
+      livros.map((l) => '<option value="' + l.cod + '"' + (l === livroIni ? " selected" : "") + ">" + esc(l.nome) + "</option>").join("") +
+      '</select></label><label class="colar-campo col-cap"><span>Capítulo</span><input class="campo" id="col-cap" type="number" min="1" inputmode="numeric" value="' + capIni + '"></label></div>' +
+      '<label class="colar-campo"><span>Texto</span><textarea class="campo" id="col-texto" rows="9" placeholder="¹ No princípio… ² …"></textarea></label>' +
+      '<p class="mudo" id="col-previa"></p>' +
+      '<div class="colar-botoes"><button class="link" id="col-apagar" type="button" hidden>Apagar este capítulo</button><span></span>' +
+      '<button class="botao" value="cancelar">Cancelar</button><button class="botao principal" id="col-salvar" type="button" disabled>Salvar capítulo</button></div></form>';
+    const q = (id) => dlg.querySelector("#" + id);
+    let lido = { ref: null, versos: [] };
+    const alvo = () => ({ nome: q("col-nome").value.trim().replace(/[|]/g, ""), cod: q("col-livro").value, cap: Number(q("col-cap").value) });
+    const chaveAlvo = (a) => a.nome + "|" + a.cod + "." + a.cap;
+    function previa() {
+      const a = alvo();
+      const caps = capitulos(a.cod, "blivre");
+      const ja = estado.colados[chaveAlvo(a)];
+      q("col-apagar").hidden = !ja;
+      let txt;
+      let ok = false;
+      if (!a.nome) txt = "Dê um nome para a tradução, como NVI.";
+      else if (!caps.includes(a.cap)) txt = porCod.get(a.cod).nome + " não tem o capítulo " + (a.cap || "") + ".";
+      else if (!q("col-texto").value.trim()) txt = ja ? "Este capítulo já está colado (" + ja.length + " versículos). Cole de novo para trocar." : "Os números dos versículos (¹ ² ³ ou 1 2 3) separam o texto. Se a referência vier junto, como “2 Reis 10:1-36”, o livro e o capítulo se ajustam sozinhos.";
+      else if (!lido.versos.length) txt = "Não achei os números dos versículos no texto. Cada versículo precisa começar com o número.";
+      else {
+        const esperado = ((window.VERSICULOS || {})[a.cod] || [])[a.cap - 1];
+        const prim = lido.versos[0][0];
+        const ult = lido.versos[lido.versos.length - 1][0];
+        txt = lido.versos.length + (lido.versos.length === 1 ? " versículo reconhecido" : " versículos reconhecidos") + " (" + prim + " a " + ult + ")";
+        if (esperado) txt += ult < esperado || prim > 1 ? ". Atenção: o capítulo tem " + esperado + " na Bíblia Livre; os que faltarem não vão aparecer." : ".";
+        txt += " Primeiro: “" + lido.versos[0][1].slice(0, 60) + (lido.versos[0][1].length > 60 ? "…" : "") + "”";
+        ok = true;
+      }
+      q("col-previa").textContent = txt;
+      q("col-salvar").disabled = !ok;
+    }
+    q("col-texto").addEventListener("input", () => {
+      lido = lerColado(q("col-texto").value);
+      if (lido.ref) {
+        q("col-livro").value = lido.ref.cod;
+        q("col-cap").value = lido.ref.cap;
+      }
+      previa();
+    });
+    for (const id of ["col-nome", "col-livro", "col-cap"]) q(id).addEventListener("input", previa);
+    q("col-salvar").addEventListener("click", () => {
+      const a = alvo();
+      estado.colados[chaveAlvo(a)] = lido.versos;
+      depoisDeColar(PREFIXO_COL + a.nome, a.cod, a.cap);
+      dlg.close();
+    });
+    q("col-apagar").addEventListener("click", () => {
+      const a = alvo();
+      if (!confirm("Apagar " + a.nome + " de " + porCod.get(a.cod).nome + " " + a.cap + " deste aparelho?")) return;
+      delete estado.colados[chaveAlvo(a)];
+      depoisDeColar(estado.versao, a.cod, a.cap);
+      dlg.close();
+    });
+    previa();
+    dlg.showModal();
+    if (!celular()) q("col-texto").focus();
+  }
+  function depoisDeColar(versao, cod, cap) {
+    falasCache.clear();
+    estado.versao = versao;
+    registrarVersoesColadas();
+    salvar();
+    irPara(cod, cap);
   }
   // Palavra a palavra do original: { cap: { verso: [[original, transliteração, tags, morfologia, índice da raiz], ...] } }
   function carregarInter(cod) {
@@ -123,7 +302,8 @@
     return Number.isInteger(n) ? n : bruto;
   }
   function capitulos(cod, versao) {
-    return (indice[versao || estado.versao] || {})[cod] || [];
+    const v = versao || estado.versao;
+    return (indice[nomeColada(v) === null ? v : "blivre"] || {})[cod] || [];
   }
   function refTexto(livro, cap, versos) {
     if (!versos || !versos.length) return livro.nome + " " + cap;
@@ -459,8 +639,17 @@
     const rot = (x) => (x ? esc(porCod.get(x.cod).nome + " " + x.cap) : "");
     let html = '<div class="leitor-interno">';
     html += "<h1>" + esc(livro.nome) + " " + estado.cap + "</h1>";
-    html += '<div class="sub">' + esc(livro.extra ? "Literatura extrabíblica" : livro.grupo) + " · " + esc(VERSOES[estado.versao].nome) + "</div>";
+    const colada = VERSOES[estado.versao].colada;
+    const capColado = Boolean(colada && dados._colados && dados._colados.has(estado.cap));
+    const nomeDoTexto = colada && !capColado ? VERSOES.blivre.nome : VERSOES[estado.versao].nome;
+    html += '<div class="sub">' + esc(livro.extra ? "Literatura extrabíblica" : livro.grupo) + " · " + esc(nomeDoTexto) + "</div>";
     html += htmlProgressoLivro(livro, dados);
+    if (colada && !capColado) {
+      html += '<p class="aviso aviso-colar">Você ainda não colou a ' + esc(colada) + " deste capítulo; o texto abaixo é da Bíblia Livre. " +
+        '<button class="link" data-colar>Colar este capítulo</button></p>';
+    } else if (capColado) {
+      html += '<p class="colado-nota mudo">Texto colado por você · <button class="link" data-colar>Trocar ou apagar</button></p>';
+    }
     if (livro.extra) {
       html +=
         '<p class="aviso">Este livro não faz parte do cânon protestante. Está aqui como leitura histórica: ajuda a entender o período entre os Testamentos. Veja o estudo sobre o cânon na Biblioteca.</p>';
@@ -502,7 +691,7 @@
     html += ant ? '<button class="botao" data-ir="-1">‹ ' + rot(ant) + "</button>" : "<span></span>";
     html += prox ? '<button class="botao" data-ir="1">' + rot(prox) + " ›</button>" : "<span></span>";
     html += "</div>";
-    html += '<p class="credito">' + esc(VERSOES[estado.versao].credito) + "</p>";
+    html += '<p class="credito">' + esc(colada && !capColado ? VERSOES.blivre.credito : VERSOES[estado.versao].credito) + "</p>";
     html += "</div>";
     leitorEl.innerHTML = html;
     $("btn-anterior").disabled = !ant;
@@ -515,6 +704,7 @@
   }
 
   leitorEl.addEventListener("click", (ev) => {
+    if (ev.target.closest("[data-colar]")) return abrirColar();
     const ir = ev.target.closest("[data-ir]");
     if (ir) {
       const d = vizinho(Number(ir.dataset.ir));
@@ -1395,19 +1585,21 @@
         caixa.innerHTML = "";
         return;
       }
-      const outra = estado.versao === "blivre" ? "bpm" : "blivre";
       const cap = estado.cap;
-      carregarLivro(outra, estado.livro).then(
-        (dados) => {
-          const t = ((dados[cap] || []).find((x) => x[0] === v) || [])[1];
-          caixa.innerHTML =
-            '<p class="comp"><b class="ref-mini">' + esc(VERSOES[outra].nome) + "</b> " +
-            (t ? formatarVerso(t) : "Este versículo não está nessa tradução.") + "</p>";
-        },
-        () => {
-          caixa.innerHTML = '<p class="comp">Este livro não está na outra tradução.</p>';
-        }
+      const cod = estado.livro;
+      // A outra tradução aberta e as coladas que têm este capítulo.
+      const outras = [estado.versao === "blivre" ? "bpm" : "blivre"].concat(
+        Object.keys(VERSOES).filter((k) => VERSOES[k].colada && k !== estado.versao && estado.colados[VERSOES[k].colada + "|" + cod + "." + cap])
       );
+      Promise.all(outras.map((o) => carregarLivro(o, cod).then((d) => [o, d], () => [o, null]))).then((lista) => {
+        caixa.innerHTML = lista
+          .map(([o, d]) => {
+            const t = d && ((d[cap] || []).find((x) => x[0] === v) || [])[1];
+            return '<p class="comp"><b class="ref-mini">' + esc(VERSOES[o].nome) + "</b> " +
+              (t ? formatarVerso(t) : d ? "Este versículo não está nessa tradução." : "Este livro não está nessa tradução.") + "</p>";
+          })
+          .join("");
+      });
     }
   }
 
@@ -1748,6 +1940,10 @@
     if (d) irPara(d.cod, d.cap);
   });
   $("sel-versao").addEventListener("change", (ev) => {
+    if (ev.target.value === "__colar") {
+      ev.target.value = estado.versao;
+      return abrirColar();
+    }
     const livro = porCod.get(estado.livro);
     if (livro.extra && ev.target.value !== "bpm") {
       ev.target.value = "bpm";
@@ -2195,6 +2391,12 @@
     // Abre (ou redesenha) uma área, mesmo que já seja a atual.
     // Redesenha o que está na tela depois que a sincronização traz dados de outro aparelho.
     redesenhar() {
+      // Capítulos colados podem ter chegado de outro aparelho.
+      const versaoAntes = estado.versao;
+      registrarVersoesColadas();
+      falasCache.clear();
+      // Reabre o capítulo só se a tradução mudou ou se ele está numa tradução colada (o texto pode ter chegado agora).
+      if (vistaAtual === "biblia" && (versaoAntes !== estado.versao || VERSOES[estado.versao].colada)) renderLeitor(sel[0]);
       if (vistaAtual === "biblia") {
         aplicarSelecaoNoLeitor();
         renderPainel();
@@ -2213,6 +2415,8 @@
   if (!estado.leitura || typeof estado.leitura !== "object") estado.leitura = {};
   if (!estado.tipos || typeof estado.tipos !== "object") estado.tipos = {};
   if (!Array.isArray(estado.sermoes)) estado.sermoes = [];
+  if (!estado.colados || typeof estado.colados !== "object") estado.colados = {};
+  registrarVersoesColadas();
   aplicarTema();
   aplicarAjustes();
   fetch("dados/indice.json")

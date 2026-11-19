@@ -1,12 +1,12 @@
 // Sincronização entre aparelhos por código.
-// O que vai para a nuvem: grifos, notas, salvos, tipos, memorização, leitura, plano, estudos e sermões.
+// O que vai para a nuvem: grifos, notas, salvos, tipos, memorização, leitura, plano, estudos, sermões e capítulos colados.
 // Cada item tem um carimbo de hora; ao juntar dois aparelhos vale a versão mais recente de cada item,
 // e o que foi apagado deixa um carimbo para não voltar. Preferências (tema, letra, capítulo aberto) não sincronizam.
 (function () {
   "use strict";
   const App = window.App;
   const e = App.estado;
-  const MAPAS = ["marcas", "notas", "salvos", "tipos", "memo", "leitura"];
+  const MAPAS = ["marcas", "notas", "salvos", "tipos", "memo", "leitura", "colados"];
   const LISTAS = ["estudos", "sermoes"];
   const API = "api/sync";
   let foto = new Map(); // id -> JSON do item como estava no último salvamento

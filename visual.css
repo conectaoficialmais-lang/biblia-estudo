@@ -464,3 +464,29 @@ body.so-texto .leitura-barra, .lt-cores {
   .mt-faixa input { width: 42px; }
   .mt-tabela thead th:first-child { font-size: 0; }
 }
+
+/* Colar outra tradução */
+.dlg-colar { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 0; border-radius: var(--raio); background: var(--cartao); color: var(--tinta); box-shadow: var(--sombra); }
+.dlg-colar::backdrop { background: rgba(12, 12, 14, 0.45); backdrop-filter: blur(4px); }
+.colar-form { display: flex; flex-direction: column; gap: 4px; padding: 22px 22px 18px; }
+.colar-form h2 { margin: 0 0 4px; font-family: var(--titulo); font-size: 20px; }
+.colar-form > .mudo { margin: 0 0 6px; font-size: 13px; }
+.colar-linha { display: grid; grid-template-columns: 1fr 1.6fr 0.8fr; gap: 10px; }
+.colar-campo { display: flex; flex-direction: column; font-size: 12.5px; color: var(--tinta-2); }
+.colar-campo .campo { margin: 4px 0 6px; color: var(--tinta); }
+#col-texto { font-weight: 400; font-size: 15px; line-height: 1.5; resize: vertical; min-height: 150px; }
+#col-previa { min-height: 2.6em; margin: 0; font-size: 13px; }
+.colar-botoes { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.colar-botoes > span { flex: 1; }
+.colado-nota { margin: -14px 0 18px; font-size: 12.5px; }
+body.so-texto .colado-nota { display: none; }
+@media (max-width: 600px) {
+  .colar-form { padding: 18px 16px 14px; }
+  .colar-linha { grid-template-columns: 1fr 1fr; }
+  .colar-linha .colar-campo:first-child { grid-column: 1 / -1; }
+}
+.colar-botoes { flex-wrap: wrap; }
+.colar-botoes .botao, #col-apagar { white-space: nowrap; }
+@media (max-width: 600px) {
+  #col-apagar { order: 3; width: 100%; text-align: center; padding: 6px 0 0; }
+}
